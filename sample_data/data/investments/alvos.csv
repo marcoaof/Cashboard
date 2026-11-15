@@ -1,0 +1,6 @@
+versao_politica,vigencia_inicio,classe,alvo,banda_min,banda_max,instrumento,fonte
+v1.0,2026-07-01,Pós-fixado,0.35,0.30,0.40,CDB e LCI de liquidez adequada,rules/politica.md
+v1.0,2026-07-01,IPCA+,0.20,0.15,0.25,LCA ou titulo publico indexado,rules/politica.md
+v1.0,2026-07-01,Ações Brasil,0.15,0.10,0.20,ETFA11,rules/politica.md
+v1.0,2026-07-01,Exterior,0.22,0.17,0.27,ETFB11,rules/politica.md
+v1.0,2026-07-01,Imóveis,0.08,0.04,0.12,FIIX11,rules/politica.md

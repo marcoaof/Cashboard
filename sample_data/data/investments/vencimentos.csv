@@ -1,0 +1,6 @@
+data,evento,ativo,classe,valor_aprox_brl,acao,fonte,status
+2026-09-30,revisao,Revisao trimestral da carteira,,0,Feita,dados de exemplo (ficticios),encerrado
+2027-03-31,revisao,Revisao trimestral da carteira,,0,Checar as bandas de alocacao,dados de exemplo (ficticios),aberto
+2027-09-10,vencimento,LCI Banco Exemplo,Pós-fixado,3000,Reaplicar conforme a politica,dados de exemplo (ficticios),aberto
+2027-12-01,vencimento,LCA Banco Exemplo,IPCA+,4000,Reaplicar conforme a politica,dados de exemplo (ficticios),aberto
+2028-03-15,vencimento,CDB Banco Exemplo,Pós-fixado,5000,Reaplicar conforme a politica,dados de exemplo (ficticios),aberto

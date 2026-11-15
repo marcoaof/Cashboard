@@ -1,0 +1,29 @@
+# Configuracao local (aponta para a pasta de dados de cada pessoa)
+config.local.json
+
+# Ambiente e temporarios
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.log
+*.tmp
+.backups/
+~$*
+
+# Dados: so o que esta em sample_data/ entra no repositorio
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.ofx
+/data/
+/goals/
+/rules/
+/reports/
+/research/
+!sample_data/
+!sample_data/**
+
+# Ferramentas locais
+.claude/

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WealthDashboard</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">W</span><div><strong>WealthDashboard</strong><small id="sub">carregando</small></div></div>
+  <nav id="tabs" role="tablist"></nav>
+  <div class="tools">
+    <select id="f-classe" title="Filtrar por classe"></select>
+    <select id="f-tipo" title="Filtrar por tipo de produto"></select>
+    <button id="b-priv" class="ghost" title="Oculta valores em reais e mantém percentuais">Privacidade</button>
+    <button id="b-xlsx" class="ghost" title="Baixa um relatório em planilha">Exportar .xlsx</button>
+    <button id="b-print" class="ghost" title="Imprime ou salva em PDF a tela atual">Imprimir</button>
+    <button id="b-cfg" class="ghost" title="Pasta de dados">Configurações</button>
+    <span id="sync" class="sync" title="Sincronização com a pasta de dados"></span>
+  </div>
+</header>
+<main id="view"></main>
+<footer id="foot"></footer>
+
+<aside id="drawer" class="drawer" aria-hidden="true"><div class="drawer-in" id="drawer-in"></div></aside>
+<div id="modal" class="modal" aria-hidden="true"><div class="modal-in" id="modal-in"></div></div>
+<div id="toast" class="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

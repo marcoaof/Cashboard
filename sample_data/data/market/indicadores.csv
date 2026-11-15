@@ -1,0 +1,7 @@
+data_ref,indicador,valor,unidade,fonte,obs
+2026-09-30,cdi,10.40,% a.a.,dados de exemplo (ficticios),Valor inventado para o exemplo
+2026-10-31,cdi,10.15,% a.a.,dados de exemplo (ficticios),Valor inventado para o exemplo
+2026-10-31,selic_meta,10.25,% a.a.,dados de exemplo (ficticios),Valor inventado para o exemplo
+2026-10-31,ipca_12m,4.10,%,dados de exemplo (ficticios),Valor inventado para o exemplo
+2026-10-31,ibovespa,100000,pontos,dados de exemplo (ficticios),Valor inventado para o exemplo
+2026-10-31,ptax_dolar_venda,5.00,BRL/USD,dados de exemplo (ficticios),Valor inventado para o exemplo

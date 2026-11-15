@@ -1,0 +1,6 @@
+mes,classe,instrumento,valor_brl,status,fonte,obs
+2026-09,Ações Brasil,ETFA11,517.50,executado,dados de exemplo (ficticios),
+2026-10,Exterior,ETFB11,522.00,executado,dados de exemplo (ficticios),
+2026-11,Pós-fixado,CDB Banco Exemplo,400.00,planejado,dados de exemplo (ficticios),Plano de novembro
+2026-11,IPCA+,LCA Banco Exemplo,300.00,planejado,dados de exemplo (ficticios),Plano de novembro
+2026-11,Ações Brasil,ETFA11,300.00,planejado,dados de exemplo (ficticios),Plano de novembro

@@ -1,0 +1,4 @@
+data_ref,ticker,preco_brl,taxa_adm_aa,pl_brl,fonte,obs
+2026-10-31,ETFA11,99.00,0.0010,,dados de exemplo (ficticios),
+2026-10-31,ETFB11,270.00,0.0030,,dados de exemplo (ficticios),
+2026-10-31,FIIX11,96.50,0.0080,,dados de exemplo (ficticios),

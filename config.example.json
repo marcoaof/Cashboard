@@ -1,0 +1,16 @@
+{
+  "data_directory": "sample_data",
+  "append_only": false,
+  "allocation_blocks": ["Caixa", "Carteira"],
+  "cash_class": "Caixa",
+  "reserve_block": "Reserva",
+  "income_categories": ["Salário", "Rendimentos"],
+  "passive_income_categories": ["Rendimentos"],
+  "benchmarks": ["cdi", "selic_meta", "ipca_12m", "ibovespa", "ptax_dolar_venda"],
+  "flag_words": ["ESTIMATIVA", "PREMISSA", "CARREGADO"],
+  "protected_paths": ["data/raw", "archive"],
+  "frozen_paths": [],
+  "parameters": {},
+  "simulator": {"real_rates": [0.03, 0.05, 0.07], "years": 20},
+  "disclaimer": "Material de organização pessoal. Não é recomendação de investimento."
+}

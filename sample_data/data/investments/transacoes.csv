@@ -1,0 +1,9 @@
+data,tipo,ativo,ticker,classe,quantidade,valor_brl,ir_brl,status,liquidacao,fonte,obs
+2026-06-05,compra,ACAO3,ACAO3,Ações Brasil,100,1200.00,0,liquidado,2026-06-09,dados de exemplo (ficticios),
+2026-07-10,compra,ETFA11,ETFA11,Ações Brasil,30,3000.00,0,liquidado,2026-07-14,dados de exemplo (ficticios),
+2026-07-10,compra,ETFB11,ETFB11,Exterior,20,5000.00,0,liquidado,2026-07-14,dados de exemplo (ficticios),
+2026-07-15,compra,FIIX11,FIIX11,Imóveis,15,1425.00,0,liquidado,2026-07-17,dados de exemplo (ficticios),
+2026-07-20,aplicacao,CDB Banco Exemplo,,Pós-fixado,,4950.00,0,liquidado,2026-07-20,dados de exemplo (ficticios),
+2026-08-20,venda,ACAO3,ACAO3,Ações Brasil,100,1320.00,0,liquidado,2026-08-24,dados de exemplo (ficticios),Venda abaixo do limite de isencao mensal
+2026-09-08,compra,ETFA11,ETFA11,Ações Brasil,5,517.50,0,liquidado,2026-09-10,dados de exemplo (ficticios),Aporte de setembro
+2026-10-07,compra,ETFB11,ETFB11,Exterior,2,522.00,0,liquidado,2026-10-09,dados de exemplo (ficticios),Aporte de outubro
