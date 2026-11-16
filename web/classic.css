@@ -1,4 +1,4 @@
-/* Dashboard Financeiro, tema classico.
+/* Cashboard, tema classico.
    Claro: ceu ao fundo, vidro no topo, botoes com brilho, paineis com faixa de titulo.
    Escuro: paineis chanfrados, faixas de titulo douradas, listas pretas com texto verde e visores LCD.
    So vale com data-skin="classico" no <html>. Cores de serie validadas contra a superficie de cada
@@ -273,6 +273,25 @@
 [data-skin="classico"] .md h1, [data-skin="classico"] .md h2 { color: #0e3a6b; font-weight: 400; }
 [data-skin="classico"] .md h2 { border-bottom: 1px solid #c5d4e4; padding-bottom: 3px; }
 
+/* adicionar, ajuda, telas vazias e formularios */
+[data-skin="classico"] .add {
+  height: 28px; border: 1px solid #1d5794; border-radius: 3px; color: #fff; font-weight: 400; text-shadow: 0 -1px 0 rgba(0,0,0,.35);
+  background: linear-gradient(#8ccaff 0%, #4fa3ef 49%, #2b84dc 50%, #3e98ec 100%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+}
+[data-skin="classico"] .add:hover { background: linear-gradient(#a4d6ff 0%, #66b2f5 49%, #3a93e6 50%, #55a8f2 100%); filter: none; }
+[data-skin="classico"] .card-acao { top: 3px; right: 6px; }
+[data-skin="classico"] .sem-sub { height: 0; }
+[data-skin="classico"] .q { border-color: #8eaacb; background: linear-gradient(#fff, #e3eefa); color: #1c5aa6; }
+[data-skin="classico"] .dica { background: #ffffe1; color: #000; border: 1px solid #767676; border-radius: 3px; box-shadow: 2px 2px 4px rgba(0,0,0,.3); }
+[data-skin="classico"] .note.exemplo { background: #ffffe1; border-color: #c9c294; color: #000; }
+[data-skin="classico"] .opcao, [data-skin="classico"] .passo { border-radius: 4px; border-color: #8eaacb; background: linear-gradient(#ffffff, #f1f6fc); }
+[data-skin="classico"] .opcao:hover { background: linear-gradient(#f4fafe, #dceffd); border-color: #3c7fb1; }
+[data-skin="classico"] .inicio h1 { font-weight: 400; color: #0b2a4a; }
+[data-skin="classico"] .atualiza { border-radius: 3px; border-color: #c5d4e4; background: #fff; }
+[data-skin="classico"] .at-linha { border-bottom-color: #edf1f6; }
+[data-skin="classico"] .calc { background: #f2f8fe; border: 1px solid #b9cde3; border-radius: 3px; }
+[data-skin="classico"] .seg.dois button[aria-checked=true] small { color: #33475e; }
+
 /* barra de status no rodape */
 [data-skin="classico"] footer {
   position: sticky; bottom: 0; max-width: none; margin: 14px 0 0; padding: 4px 14px; z-index: 15;
@@ -429,6 +448,25 @@
 [data-skin="classico"][data-theme="dark"] .md h1, [data-skin="classico"][data-theme="dark"] .md h2 { color: #e8c95a; }
 [data-skin="classico"][data-theme="dark"] .md h2 { border-bottom-color: #34344a; }
 [data-skin="classico"][data-theme="dark"] .md code, [data-skin="classico"][data-theme="dark"] .md pre { background: #000; color: #2fe02f; }
+
+[data-skin="classico"][data-theme="dark"] .add {
+  background: linear-gradient(#f2d77a, #b8962e); border: 1px solid; border-color: #fff2b0 #4a3a0c #4a3a0c #fff2b0; border-radius: 0; color: #1a1300; text-shadow: none; box-shadow: none;
+}
+[data-skin="classico"][data-theme="dark"] .add:hover { background: linear-gradient(#f8e39a, #c9a63a); }
+[data-skin="classico"][data-theme="dark"] .q { background: #000; border-color: #6e6e8c; color: #e8c95a; border-radius: 0; }
+[data-skin="classico"][data-theme="dark"] .dica { background: #000; color: var(--lcd-on); border: 1px solid #6e6e8c; border-radius: 0; box-shadow: 2px 2px 0 #000; font-family: var(--font-lcd); font-size: 1.1rem; }
+[data-skin="classico"][data-theme="dark"] .note.exemplo { background: #000; border-color: #5a4f1a; color: #ffcf3f; }
+[data-skin="classico"][data-theme="dark"] .opcao, [data-skin="classico"][data-theme="dark"] .passo {
+  background: var(--surface); border: 1px solid; border-color: #4a4a62 #050508 #050508 #4a4a62; border-radius: 0; color: var(--ink);
+}
+[data-skin="classico"][data-theme="dark"] .opcao:hover { background: #0000c6; color: #fff; }
+[data-skin="classico"][data-theme="dark"] .opcao:hover small, [data-skin="classico"][data-theme="dark"] .opcao:hover .ic { color: #fff; }
+[data-skin="classico"][data-theme="dark"] .inicio h1 { color: #e8c95a; }
+[data-skin="classico"][data-theme="dark"] .atualiza { background: #000; border: 1px solid; border-color: var(--bevel-in); border-radius: 0; }
+[data-skin="classico"][data-theme="dark"] .at-linha { border-bottom-color: #26263a; }
+[data-skin="classico"][data-theme="dark"] .calc { background: #000; border: 1px solid; border-color: var(--bevel-in); border-radius: 0; color: var(--lcd-on); }
+[data-skin="classico"][data-theme="dark"] .modal-in h3 { color: #e8c95a; }
+[data-skin="classico"][data-theme="dark"] .seg.dois button[aria-checked=true] small { color: var(--lcd-dim); }
 
 [data-skin="classico"][data-theme="dark"] footer {
   background: linear-gradient(#2c2c3e, #1b1b28); border-top: 1px solid #000; box-shadow: inset 0 1px 0 #4a4a62;

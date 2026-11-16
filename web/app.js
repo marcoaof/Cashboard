@@ -1,8 +1,9 @@
-/* Dashboard Financeiro - frontend. Sem framework: estado em S, uma funcao de desenho por aba. */
+/* Cashboard - frontend. Sem framework: estado em S, uma funcao de desenho por aba.
+   As telas de cadastro (adicionar, atualizar valores, metas, importar, IA) ficam em forms.js. */
 "use strict";
 
-const TABS = [["geral", "Visão geral", "painel"], ["alocacao", "Alocação", "pizza"], ["resultado", "Lucros", "alta"],
-  ["gastos", "Gastos", "cartao"], ["evolucao", "Evolução e simulador", "barras"], ["gestao", "Gestão", "lapis"]];
+const TABS = [["geral", "Resumo", "painel"], ["resultado", "Investimentos", "alta"], ["alocacao", "Alocação", "pizza"],
+  ["gastos", "Gastos", "cartao"], ["evolucao", "Evolução", "barras"], ["gestao", "Lançamentos", "lapis"]];
 /* Icones proprios, em traco, que herdam a cor do texto. */
 const ICONES = {
   painel: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
@@ -19,6 +20,14 @@ const ICONES = {
   baixar: '<path d="M12 4v11M7 11l5 5 5-5M4 20h16"/>',
   imprimir: '<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/>',
   pasta: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  mais: '<path d="M12 5v14M5 12h14"/>',
+  atualizar: '<path d="M20 11a8 8 0 0 0-14.3-4.3L4 8.5"/><path d="M4 4v4.5h4.5"/><path d="M4 13a8 8 0 0 0 14.3 4.3l1.7-1.8"/><path d="M20 20v-4.5h-4.5"/>',
+  troca: '<path d="M4 8h14M14 4l4 4-4 4"/><path d="M20 16H6M10 12l-4 4 4 4"/>',
+  alvo: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2"/>',
+  calendario: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  colar: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4a3 3 0 0 1 6 0v1H9zM9 11h6M9 15h4"/>',
+  ia: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+  porquinho: '<path d="M4 12a7 6 0 0 1 7-6h3a6 6 0 0 1 5.5 3.6L21 10v4l-1.6.5A6 6 0 0 1 17 17v2.5h-3V18h-3v1.5H8V17a7 6 0 0 1-4-5z"/><path d="M9 6.2V4"/><circle cx="16" cy="11" r=".6"/>',
 };
 const ic = (nome) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONES[nome] || ""}</svg>`;
 /* Cores e fontes vem do CSS (styles.css e classic.css), para os graficos acompanharem tema e modo. */
@@ -55,7 +64,7 @@ const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k)
 
 const S = {
   d: null, schema: null, tab: ls("wd.tab") || "geral", priv: ls("wd.priv") === "1",
-  classe: "", tipo: "", mes: null, gestao: "lancamentos", tabela: "transacoes", busca: "",
+  classe: "", tipo: "", mes: null, gestao: "lancamentos", tabela: "despesas", busca: "",
   linhas: null, docs: null, doc: null, editando: false, aporte: null, sim: null, charts: [],
 };
 const $ = (id) => document.getElementById(id);
@@ -72,12 +81,15 @@ const brlAbbr = (v) => {
   return f(v, a < 10 ? 2 : a < 100 ? 1 : 0);   // valores pequenos mantem as casas, senao o eixo repete "1, 1, 2, 2"
 };
 const pct = (v, casas = 2) => v == null ? "n/d" : (v * 100).toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas }) + "%";
+const pctSinal = (v, casas = 2) => v == null ? "n/d" : (v > 0 ? "+" : "") + pct(v, casas);
 const qtd = (v) => v == null ? "" : S.priv ? "•••" : v.toLocaleString("pt-BR", { maximumFractionDigits: 6 });
 const dt = (s) => s && /^\d{4}-\d{2}-\d{2}/.test(s) ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : /^\d{4}-\d{2}$/.test(s || "") ? `${s.slice(5)}/${s.slice(0, 4)}` : (s || "");
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const mes = (s) => s && /^\d{4}-\d{2}$/.test(s) ? `${MESES[+s.slice(5) - 1]}/${s.slice(0, 4)}` : (s || "");
 const sinal = (v) => v == null || Math.abs(v) < 0.005 ? "" : v > 0 ? "pos" : "neg";
 const comSinal = (v) => v == null ? "n/d" : (v > 0 && !S.priv ? "+" : "") + brl(v);
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
 
 /* ---------------------------------------------------------------- API */
 async function api(path, opt = {}) {
@@ -96,9 +108,9 @@ function toast(msg, err) {
 
 function conexao(ok) {
   $("sync").className = "sync " + (ok ? "ok" : "err");
-  if (!ok) $("sub").textContent = "Sem conexão com o servidor";
-  else if (S.d) $("sub").textContent = S.d.vazio ? "Sem dados" : `Posição de ${dt(S.d.snapshot)}`;
-  $("b-sync").title = ok ? "Sincronizado com a pasta de dados. Clique para recarregar agora." : "O servidor local não respondeu. Clique para tentar de novo.";
+  if (!ok) $("sub").textContent = "Painel desligado";
+  else if (S.d) $("sub").textContent = S.d.exemplo ? "Dados de exemplo" : S.d.snapshot ? `Carteira de ${dt(S.d.snapshot)}` : "Tudo salvo";
+  $("b-sync").title = ok ? "O painel acompanha a sua pasta de dados. Clique para recarregar agora." : "O painel não respondeu. Confira se a janela do Cashboard continua aberta e clique para tentar de novo.";
 }
 async function carregar(silencioso) {
   try {
@@ -113,17 +125,18 @@ async function carregar(silencioso) {
     toast(e.message, true);
   }
 }
+const camadaAberta = () => $("drawer").classList.contains("open") || $("modal").classList.contains("open");
 async function vigiar() {
   if (document.hidden) return;   // aba em segundo plano: confere quando voltar
   try {
     const s = await api("/api/state");
     conexao(true);
     if (S.d && s.fingerprint !== S.d.fingerprint) {
-      if ($("drawer").classList.contains("open") || S.editando) return;   // nao atropela quem digita
+      if (camadaAberta() || S.editando) return;   // nao atropela quem digita
       const y = window.scrollY;
       await carregar(true);
       window.scrollTo(0, y);
-      toast("Arquivos alterados na pasta de dados. Painel atualizado.");
+      toast("Chegaram dados novos. Painel atualizado.");
     }
   } catch (e) { conexao(false); }
 }
@@ -147,7 +160,7 @@ function linhasDaLegenda(option, largura) {
 function chart(id, option) {
   const el = $(id);
   if (!el) return;
-  if (!window.echarts) { el.innerHTML = '<p class="muted small">Gráfico indisponível: a biblioteca ECharts não carregou (sem internet?). As tabelas continuam valendo.</p>'; return; }
+  if (!window.echarts) { el.innerHTML = '<p class="muted small">Sem internet, os gráficos não aparecem. Os números e as tabelas continuam certos.</p>'; return; }
   const c = echarts.init(el, null, { renderer: "svg" });
   const eixo = { axisLine: { lineStyle: { color: GRID } }, axisTick: { show: false }, axisLabel: { color: MUTED }, splitLine: { lineStyle: { color: GRID } } };
   const base = {
@@ -202,22 +215,27 @@ window.addEventListener("resize", () => {
 let largura = window.innerWidth, espera = 0;
 window.addEventListener("resize", () => {
   clearTimeout(espera);
-  espera = setTimeout(() => { if (Math.abs(window.innerWidth - largura) > 80) { largura = window.innerWidth; desenhar(); } }, 250);
+  espera = setTimeout(() => { if (Math.abs(window.innerWidth - largura) > 80) { largura = window.innerWidth; if (!camadaAberta()) desenhar(); } }, 250);
 });
 const eixoBRL = { type: "value", axisLabel: { formatter: (v) => brlAbbr(v) } };
 const barra = (extra) => ({ type: "bar", barMaxWidth: 24, itemStyle: { borderRadius: [3, 3, 0, 0], borderColor: SURFACE, borderWidth: 1 }, ...extra });
 
 /* ---------------------------------------------------------------- pecas */
-const kpi = (rotulo, valor, sub, cls = "") => `<div class="kpi"><span>${rotulo}</span><b class="${cls}">${valor}</b><small>${sub || ""}</small></div>`;
-const card = (titulo, sub, corpo, cls = "") => `<div class="card ${cls}"><h2>${titulo}</h2><p class="sub">${sub || ""}</p>${corpo}</div>`;
-function tabela(cab, linhas, pe) {
-  const th = cab.map((c) => `<th class="${c.n ? "n" : ""}">${c.t}</th>`).join("");
+/* dica(): o "?" ao lado de um termo. A explicacao fica fora da tela ate a pessoa pedir. */
+const dica = (t) => t ? `<button type="button" class="q" data-q="${esc(t)}" aria-label="O que é isso?">?</button>` : "";
+const kpi = (rotulo, valor, sub, cls = "", ajuda = "") => `<div class="kpi"><span>${rotulo}${dica(ajuda)}</span><b class="${cls}">${valor}</b><small>${sub || ""}</small></div>`;
+const card = (titulo, sub, corpo, cls = "", topo = "") => `<div class="card ${cls}"><h2>${titulo}</h2>${topo ? `<div class="card-acao noprint">${topo}</div>` : ""}${sub ? `<p class="sub">${sub}</p>` : '<div class="sem-sub"></div>'}${corpo}</div>`;
+const botao = (texto, acao, primario, mini) => `<button class="btn ${primario ? "primary" : ""} ${mini ? "mini" : ""}" data-acao="${acao}">${texto}</button>`;
+/* vazio(): o que mostrar quando ainda nao ha dado. Sempre diz o proximo passo. */
+const vazio = (titulo, texto, botoes = []) => `<div class="vazio"><h3>${titulo}</h3><p>${texto}</p><div class="row noprint">${botoes.map(([t, a, p]) => botao(t, a, p)).join("")}</div></div>`;
+function tabela(cab, linhas, pe, semDados = "Nada por aqui ainda.") {
+  const th = cab.map((c) => `<th class="${c.n ? "n" : ""}"${c.d ? ` title="${esc(c.d)}"` : ""}>${c.t}</th>`).join("");
   const tr = linhas.map((l) => `<tr>${l.map((v, i) => `<td class="${cab[i].n ? "n" : ""}">${v ?? ""}</td>`).join("")}</tr>`).join("");
   const tf = pe ? `<tfoot><tr>${pe.map((v, i) => `<td class="${cab[i].n ? "n" : ""}">${v ?? ""}</td>`).join("")}</tr></tfoot>` : "";
-  return `<div class="scroll"><table><thead><tr>${th}</tr></thead><tbody>${tr || `<tr><td colspan="${cab.length}" class="muted">Sem dados.</td></tr>`}</tbody>${tf}</table></div>`;
+  return `<div class="scroll"><table><thead><tr>${th}</tr></thead><tbody>${tr || `<tr><td colspan="${cab.length}" class="muted">${semDados}</td></tr>`}</tbody>${tf}</table></div>`;
 }
 const filtradas = () => S.d.posicoes.filter((p) => (!S.classe || p.classe === S.classe) && (!S.tipo || p.tipo === S.tipo));
-/* Soma as posicoes por tipo de produto. Usada na aba Lucros, que respeita o filtro. */
+/* Soma os investimentos por tipo de produto. Usada na aba Investimentos, que respeita o filtro. */
 function porTipo(ps) {
   const m = {};
   ps.forEach((p) => {
@@ -230,71 +248,89 @@ function porTipo(ps) {
   return Object.values(m).sort((a, b) => b.valor - a.valor);
 }
 const lista = (xs) => xs.length > 1 ? xs.slice(0, -1).join(", ") + " e " + xs[xs.length - 1] : xs.join("");
-const semCalculo = (t) => !t.n_sem_dado ? "" : t.tipo === "Conta" ? '<span class="muted">não se aplica</span>' : `${t.n_sem_dado} de ${t.n} sem custo`;
 const parcial = (d, m) => m === d.hoje.slice(0, 7);
-const metodo = (p) => p.metodo === "custo" ? "sobre o custo" : p.metodo === "observado" ? `rendimento desde ${dt(p.desde)}` : "sem custo no arquivo";
+const pintado = (v, texto) => `<span class="${sinal(v)}">${texto}</span>`;
+const DICAS = {
+  lucro: "Valor de hoje menos o que você pagou. Só vira dinheiro no bolso quando você vende ou resgata.",
+  rendeu: "O painel não sabe quanto você aplicou nestes títulos. Então mostra quanto o valor subiu desde a primeira vez que eles apareceram aqui.",
+  vendas: "O que você recebeu nas vendas menos o que tinha pago.",
+  guardei: "Parte da renda do mês que não foi gasta.",
+  investimentos: "Tudo o que está investido, mais o dinheiro em conta separado para investir. A reserva de emergência fica de fora.",
+};
 
-/* ---------------------------------------------------------------- aba: visao geral */
+/* Faixa do topo: aviso de dados de exemplo ou a lista do que falta completar. */
+function topo(d) {
+  if (d.exemplo) return `<div class="note exemplo noprint"><span>Você está vendo <b>dados de exemplo</b>, inventados para mostrar como o painel funciona.</span>${botao("Começar com meus dados", "meusdados", 1)}</div>`;
+  const p = d.pendencias;
+  return p.length ? `<details class="banner"><summary>${plural(p.length, "item", "itens")} para completar o painel</summary><ul>${p.map((x) => `<li>${esc(x.texto)} <button class="btn mini noprint" data-acao="${esc(x.acao)}">${esc(x.botao)}</button></li>`).join("")}</ul></details>` : "";
+}
+const semInvestimentos = () => vazio("Você ainda não tem investimentos aqui", "Adicione o que você tem hoje. O painel calcula o total, o lucro e a divisão da carteira.", [["Adicionar investimento", "posicao", 1], ["Deixar uma IA preencher", "ia"]]);
+
+/* ---------------------------------------------------------------- aba: resumo */
 function vGeral(d) {
   const b = d.blocos, r = d.resultado, ev = d.evolucao, ant = ev.length > 1 ? ev[ev.length - 2] : null;
-  const g = d.gastos[d.gastos.length - 1];
-  const delta = ant ? `Variação de <b>${comSinal(b.total - ant.total)}</b> desde a posição de ${dt(ant.data)}. Inclui dinheiro novo, não é só rendimento.` : "Primeira posição registrada.";
+  const g = d.gastos[d.gastos.length - 1], res = d.reserva;
   const tCusto = lista(r.por_tipo.filter((t) => t.n_custo).map((t) => t.tipo)), tObs = lista(r.por_tipo.filter((t) => t.n_observado).map((t) => t.tipo));
-  const res = d.reserva;
+  const kGastos = !g ? "" : kpi(`Gastos de ${mes(g.mes)}`, brl(g.gastos),
+    parcial(d, g.mes) ? "Mês em andamento" : g.taxa == null ? "Sem renda lançada no mês" : g.taxa < 0 ? "Você gastou mais do que ganhou" : `Você guardou ${pct(g.taxa, 0)} da renda`);
+  if (!d.tem.posicoes) {
+    return { html: `${topo(d)}${card("Resumo", "", semInvestimentos())}${kGastos ? `<section class="kpis">${kGastos}</section>` : ""}` };
+  }
+  const delta = ant ? `<b>${comSinal(b.total - ant.total)}</b> desde ${dt(ant.data)}${dica("Soma o que rendeu e o dinheiro novo que você colocou.")}` : "Primeira atualização da carteira.";
   // Faixa de composicao: mesmas partes e mesmas cores do grafico de evolucao.
-  const partes = PARTES.map(([nome, k], i) => ({ nome, v: b[k], cor: SERIES[i] })).filter((p) => p.v > 0);
+  const partes = PARTES.map(([nome, k], i) => ({ nome, v: b[k], cor: SERIES[i] })).filter((p) => p.v > 0.005);
   const hero = `<section class="hero">
-      <div><div class="hero-head"><span class="hero-label">Patrimônio total</span><span class="hero-date">Posição em ${dt(d.snapshot)}</span></div>
+      <div><div class="hero-head"><span class="hero-label">Patrimônio total</span><span class="hero-date">Atualizado em ${dt(d.snapshot)} <button class="btn mini noprint" data-acao="atualizar">Atualizar valores</button></span></div>
         <div class="hero-num">${brl(b.total)}</div><p class="hero-sub">${delta}</p></div>
-      <div><div class="strip" role="img" aria-label="Composição do patrimônio por bloco">${partes.map((p) => `<i style="flex:${p.v};background-color:${p.cor}" title="${p.nome}: ${pct(p.v / b.total, 1)}"></i>`).join("")}</div>
+      <div><div class="strip" role="img" aria-label="Divisão do patrimônio">${partes.map((p) => `<i style="flex:${p.v};background-color:${p.cor}" title="${p.nome}: ${pct(p.v / b.total, 1)}"></i>`).join("")}</div>
         <ul class="legend">${partes.map((p) => `<li><span class="dot" style="background-color:${p.cor};margin:0"></span><span class="nome">${p.nome}</span><span class="v">${brl(p.v)}</span><span class="p">${pct(p.v / b.total, 1)}</span></li>`).join("")}</ul></div>
     </section>`;
+  const reserva = !res.meta ? `<button class="link noprint" data-acao="metas">Definir uma meta</button>`
+    : `<div class="prog"><i style="width:${Math.min(100, res.atual / res.meta * 100)}%"></i></div>`
+      + (res.atual >= res.meta ? "Meta atingida" : `${pct(res.atual / res.meta, 0)} da meta${S.priv ? "" : ` de ${brl(res.meta)}`}`)
+      + (res.meses ? `. Cobre ${res.meses.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} meses de gastos` : "");
   const kp = [
-    kpi("Carteira de investimento", brl(b.base), `Base da alocação. Caixa ainda não investido: ${pct(b.base ? b.caixa / b.base : 0)}`),
-    kpi(tCusto ? `Lucro não realizado: ${esc(tCusto)}` : "Lucro não realizado", tCusto ? comSinal(r.sobre_custo) : "n/d",
-      tCusto ? `${pct(r.sobre_custo / r.custo_total)} sobre o custo de ${brl(r.custo_total)}. Só entra quem tem preço médio.` : "Nenhuma posição com custo no arquivo", tCusto ? sinal(r.sobre_custo) : ""),
-    !tObs ? "" : kpi(`Rendimento: ${esc(tObs)}`, tObs ? comSinal(r.observado) : "n/d",
-      tObs ? `Variação desde ${dt(r.observado_desde)}, primeira posição no arquivo. Não é o lucro desde a aplicação.` : "Sem títulos nessa condição", tObs ? sinal(r.observado) : ""),
-    kpi("Renda passiva recebida", brl(d.passiva.total_12m), `Rendimentos lançados nos últimos ${d.passiva.n_meses} meses`),
-    g ? kpi(`Gastos de ${mes(g.mes)}${parcial(d, g.mes) ? " (parcial)" : ""}`, brl(g.gastos), parcial(d, g.mes) ? `Mês em andamento. Renda até aqui: ${brl(g.renda)}` : `Renda de ${brl(g.renda)}, poupança de ${pct(g.taxa)}`) : kpi("Gastos do mês", "n/d", "Sem lançamentos"),
-    kpi("Reserva de emergência", brl(res.atual), !res.meta ? "Meta não cadastrada" : `<div class="prog"><i style="width:${Math.min(100, res.atual / res.meta * 100)}%"></i></div>`
-      + (res.atual >= res.meta ? `Meta de ${brl(res.meta)} atingida, com ${brl(res.atual - res.meta)} a mais` : `${pct(res.atual / res.meta, 0)} da meta de ${brl(res.meta)}. Faltam ${brl(res.meta - res.atual)}`)),
+    kpi("Investimentos", brl(b.base), b.caixa > 0.005 ? (S.priv ? "Parte ainda está em conta, sem investir" : `${brl(b.caixa)} ainda em conta, sem investir`) : "Sem contar a reserva de emergência", "", DICAS.investimentos),
+    tCusto ? kpi("Lucro até agora", comSinal(r.sobre_custo), `${pctSinal(r.custo_total ? r.sobre_custo / r.custo_total : null)} sobre o que você investiu`, sinal(r.sobre_custo), `${DICAS.lucro} Entram na conta: ${tCusto}.`)
+      : kpi("Lucro até agora", "n/d", "Informe quanto você investiu para ver o lucro", "", DICAS.lucro),
+    !tObs ? "" : kpi(`Rendeu desde ${dt(r.observado_desde)}`, comSinal(r.observado), esc(tObs), sinal(r.observado), DICAS.rendeu),
+    kpi("Rendimentos recebidos", brl(d.passiva.total_12m), d.passiva.total_12m ? `Dividendos e juros em ${plural(d.passiva.n_meses, "mês", "meses")}` : "Nenhum rendimento lançado", "", "Entradas lançadas na aba Gastos com a categoria Rendimentos."),
+    kGastos,
+    kpi("Reserva de emergência", brl(res.atual), reserva, "", res.meses ? `Meses de gastos: a reserva dividida pela média dos seus gastos nos últimos ${plural(res.n_meses_media, "mês fechado", "meses fechados")}.` : ""),
   ].join("");
-  const avisos = [];
-  if (d.alertas_posicao) avisos.push(`${d.alertas_posicao} de ${d.posicoes.length} posições têm valor estimado, carregado ou por premissa. Em Lucros, a etiqueta "estimado" mostra a observação ao passar o mouse. Como resolver: atualizar a posição com o extrato mais recente.`);
-  d.faltando.forEach((f) => avisos.push(f));
-  const banner = avisos.length ? `<details class="banner"><summary>${avisos.length} ponto(s) de atenção nos dados</summary><ul>${avisos.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></details>` : "";
   const so = (cond, x) => (cond ? [x] : []);
-  const tipos = tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Lucro sobre custo", n: 1 }, ...so(tObs, { t: "Rendimento observado", n: 1 }), { t: "Sem cálculo" }],
-    r.por_tipo.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? `<span class="${sinal(t.sobre_custo)}">${comSinal(t.sobre_custo)}</span>` : "",
-      ...so(tObs, t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : ""), `<span class="small">${semCalculo(t)}</span>`]),
-    ["Total", brl(b.total), comSinal(r.sobre_custo), ...so(tObs, comSinal(r.observado)), ""]);
-  const ordem = d.ordem ? tabela([{ t: "Classe" }, { t: "Instrumento" }, { t: "Valor", n: 1 }], d.ordem.itens.map((i) => [esc(i.classe), esc(i.instrumento), brl(i.valor)]), ["Total", "", brl(d.ordem.total)])
-    + `<p class="muted small">Fonte: ${esc(d.ordem.fonte)}</p>` : '<p class="muted">Nenhum aporte planejado em aportes.csv.</p>';
-  const eventos = tabela([{ t: "Data" }, { t: "Evento" }, { t: "Valor", n: 1 }, { t: "Ação" }],
-    d.eventos.slice(0, 6).map((e) => [`<span class="num">${dt(e.data)}</span>`, `${esc(e.ativo)} <span class="tag">${esc(e.evento)}</span>`, e.valor ? brl(e.valor) : "", `<span class="small muted">${esc(e.acao)}</span>`]));
-  const ind = tabela([{ t: "Indicador" }, { t: "Valor", n: 1 }, { t: "Data", n: 1 }],
-    d.indicadores.map((i) => [`<span title="Fonte: ${esc(i.fonte)}">${esc(NOMES_IND[i.indicador] || i.indicador)}</span>`, `${i.valor == null ? "n/d" : i.valor.toLocaleString("pt-BR")} ${esc(i.unidade)}`, dt(i.data)]));
+  const faltam = r.por_tipo.some((t) => t.n_sem_dado && t.tipo !== "Conta");
+  const tipos = tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Lucro", n: 1, d: DICAS.lucro }, ...so(tObs, { t: "Rendeu", n: 1, d: DICAS.rendeu }), ...so(faltam, { t: "" })],
+    r.por_tipo.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? pintado(t.sobre_custo, comSinal(t.sobre_custo)) : "",
+      ...so(tObs, t.n_observado ? pintado(t.observado, comSinal(t.observado)) : ""),
+      ...so(faltam, t.n_sem_dado && t.tipo !== "Conta" ? `<span class="small muted">${t.n_sem_dado} sem valor investido</span>` : "")]),
+    ["Total", brl(b.total), tCusto ? comSinal(r.sobre_custo) : "", ...so(tObs, comSinal(r.observado)), ...so(faltam, "")]);
+  const ordem = d.ordem ? tabela([{ t: "Classe" }, { t: "Onde investir" }, { t: "Valor", n: 1 }], d.ordem.itens.map((i) => [esc(i.classe), esc(i.instrumento), brl(i.valor)]), ["Total", "", brl(d.ordem.total)])
+    : vazio("Nenhum aporte planejado", "Planeje quanto investir no mês e em quê.", [["Planejar aporte", "aportes"]]);
+  const eventos = d.eventos.length ? tabela([{ t: "Data" }, { t: "O quê" }, { t: "Valor", n: 1 }, { t: "O que fazer" }],
+    d.eventos.slice(0, 6).map((e) => [`<span class="num">${dt(e.data)}</span>`, `${esc(e.ativo)} <span class="tag">${esc(e.evento)}</span>`, e.valor ? brl(e.valor) : "", `<span class="small muted">${esc(e.acao)}</span>`]))
+    : vazio("Nenhuma data marcada", "Anote vencimentos e lembretes para não perder o prazo.", [["Adicionar data", "vencimentos"]]);
+  const ind = !d.indicadores.length ? "" : card("Indicadores do mercado", "Último valor lançado de cada um.", tabela([{ t: "Indicador" }, { t: "Valor", n: 1 }, { t: "Data", n: 1 }],
+    d.indicadores.map((i) => [`<span title="Fonte: ${esc(i.fonte)}">${esc(NOMES_IND[i.indicador] || i.indicador)}</span>`, `${i.valor == null ? "n/d" : i.valor.toLocaleString("pt-BR")} ${esc(i.unidade)}`, dt(i.data)])));
   return {
-    html: `${banner}${hero}<section class="kpis">${kp}</section>
+    html: `${topo(d)}${hero}<section class="kpis">${kp}</section>
       <section class="grid cols">
-        ${card("Evolução do patrimônio", "Uma barra por posição registrada (snapshot), dividida por bloco.", '<div id="c-evo" class="chart"></div>')}
-        ${card("Patrimônio por tipo de produto", "Valor de cada tipo na posição atual.", '<div id="c-tipo" class="chart"></div>')}
-        ${card("Lucros por tipo de produto", tObs ? "Duas medidas que não se somam. Sobre custo: valor menos o custo de aquisição. Observado: variação desde a primeira posição do título no arquivo." : "Valor da posição menos o custo de aquisição. Conta corrente não tem lucro a medir.", tipos)}
-        ${card(d.ordem ? `Ordem planejada de ${mes(d.ordem.mes)}` : "Ordem do mês", "Último plano registrado em aportes.csv. Planejado não é executado.", ordem)}
-        ${card("Próximos eventos", "Vencimentos e datas em aberto, de hoje em diante.", eventos)}
-        ${card("Indicadores de referência", "Último valor registrado em indicadores.csv (passe o mouse no nome para ver a fonte). Períodos diferentes do da carteira: não compare direto.", ind)}
+        ${card("Evolução do patrimônio", "", '<div id="c-evo" class="chart"></div>')}
+        ${card("Onde está o dinheiro", "", '<div id="c-tipo" class="chart"></div>')}
+        ${card("Lucro por tipo de investimento", "", tipos)}
+        ${card(d.ordem ? `Plano de aporte de ${mes(d.ordem.mes)}` : "Plano de aporte", "", ordem)}
+        ${card("Próximas datas", "", eventos)}
+        ${ind}
       </section>`,
     depois() { gEvolucao("c-evo", d); gTipos("c-tipo", d); },
   };
 }
 const NOMES_IND = { cdi: "CDI", selic_meta: "Selic meta", selic_over: "Selic over", ipca_12m: "IPCA em 12 meses", ibovespa: "Ibovespa", ptax_dolar_venda: "Dólar (PTAX venda)" };
-const PARTES = [["Investido", "investido"], ["Caixa", "caixa"], ["Reserva", "reserva"], ["Fora da carteira", "fora"]];
+const PARTES = [["Investido", "investido"], ["Em conta, a investir", "caixa"], ["Reserva de emergência", "reserva"], ["Fora da carteira", "fora"]];
 function gEvolucao(id, d) {
-  const partes = PARTES;
   chart(id, {
     legend: {}, xAxis: { type: "category", data: d.evolucao.map((e) => dt(e.data).slice(0, 5)) }, yAxis: eixoBRL,
-    series: partes.map(([nome, k], i) => barra({ name: nome, stack: "t", data: d.evolucao.map((e) => +e[k].toFixed(2)), itemStyle: { color: SERIES[i], borderColor: SURFACE, borderWidth: 1 } })),
+    series: PARTES.filter(([, k]) => d.evolucao.some((e) => e[k] > 0)).map(([nome, k]) => barra({ name: nome, stack: "t", data: d.evolucao.map((e) => +e[k].toFixed(2)), itemStyle: { color: SERIES[PARTES.findIndex((p) => p[1] === k)], borderColor: SURFACE, borderWidth: 1 } })),
   });
 }
 function gTipos(id, d) {
@@ -306,6 +342,62 @@ function gTipos(id, d) {
   });
 }
 
+/* ---------------------------------------------------------------- aba: investimentos */
+function vResultado(d) {
+  if (!d.tem.posicoes) return { html: topo(d) + card("Investimentos", "", semInvestimentos()) };
+  const r = d.resultado, todas = d.posicoes.filter((p) => p.valor), ps = filtradas().filter((p) => p.valor);
+  const filtrando = !!(S.classe || S.tipo), rotulo = [S.tipo, S.classe].filter(Boolean).join(", ");
+  const tipos = porTipo(ps), soma = (k) => tipos.reduce((t, x) => t + x[k], 0);
+  const custo = soma("custo"), sobre = soma("sobre_custo"), obs = soma("observado"), temCusto = soma("n_custo") > 0, temObs = soma("n_observado") > 0;
+  const com = ps.filter((p) => p.resultado != null).sort((a, b) => a.resultado - b.resultado);
+  const lucro = (p) => p.resultado == null ? '<span class="muted small">falta o valor investido</span>'
+    : pintado(p.resultado, comSinal(p.resultado)) + (p.metodo === "observado" ? `<br><span class="muted small">desde ${dt(p.desde)}</span>` : "");
+  const linhas = [...ps].sort((a, b) => b.valor - a.valor).map((p) => [
+    `${esc(p.ativo)}${p.alerta ? ` <span class="tag warn" title="${esc(p.obs)}">estimado</span>` : ""}<br><span class="muted small">${esc([p.indexador, p.vencimento ? `vence em ${dt(p.vencimento)}` : ""].filter(Boolean).join(", "))}</span>`,
+    esc(p.tipo), esc(p.classe), qtd(p.quantidade), p.preco_medio == null ? "" : brl(p.preco_medio), p.preco_mercado == null ? "" : brl(p.preco_mercado),
+    brl(p.valor), lucro(p), p.resultado_pct == null ? "" : pintado(p.resultado_pct, pctSinal(p.resultado_pct))]);
+  const unicos = (k) => [...new Set(d.posicoes.map((p) => p[k]))].sort();
+  const sel = (id, vals, atual, rot) => `<select id="${id}" aria-label="${rot}"><option value="">${rot}</option>${vals.map((v) => `<option ${v === atual ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`;
+  const filtros = `<div class="filters noprint">${sel("f-classe", unicos("classe"), S.classe, "Todas as classes")}${sel("f-tipo", unicos("tipo"), S.tipo, "Todos os tipos")}
+    ${filtrando ? `<button class="btn" id="f-limpar">Limpar filtro</button><span class="muted small">${ps.length} de ${todas.length}</span>` : ""}
+    <span class="empurra"></span>${botao("Atualizar valores", "atualizar")}${botao("Novo investimento", "posicao", 1)}</div>`;
+  const real = r.realizado, temVendas = real.itens.length || real.sem_custo.length;
+  const realTab = tabela([{ t: "Data" }, { t: "Investimento" }, { t: "Quantidade", n: 1 }, { t: "Vendeu por", n: 1 }, { t: "Tinha pago", n: 1 }, { t: "Lucro", n: 1 }],
+    real.itens.map((i) => [dt(i.data), esc(i.ticker) + (i.base === "posicao" ? ` <span class="tag" title="A compra não foi lançada. O painel usou o preço médio de ${brl(i.pm)} que estava na carteira em ${dt(i.base_data)}.">pelo preço médio</span>` : ""), qtd(i.quantidade), brl(i.venda), brl(i.custo), pintado(i.resultado, comSinal(i.resultado))]),
+    ["Total", "", "", "", "", comSinal(real.total)]);
+  const semCusto = real.sem_custo.length ? `<p class="small muted">Ficou de fora, por faltar a compra: ${real.sem_custo.map((s) => `${esc(s.ativo)} em ${dt(s.data)}`).join("; ")}. <button class="link noprint" data-acao="transacoes">Registrar a compra</button></p>` : "";
+  return {
+    html: `${topo(d)}${filtros}<section class="kpis">
+        ${kpi(filtrando ? `Valor: ${esc(rotulo)}` : "Valor atual", brl(soma("valor")), `${plural(ps.length, "investimento", "investimentos")} em ${dt(d.snapshot)}`)}
+        ${kpi("Lucro até agora", temCusto ? comSinal(sobre) : "n/d", temCusto ? `${pctSinal(custo ? sobre / custo : null)} sobre ${S.priv ? "o que você investiu" : brl(custo) + " investidos"}` : "Falta informar quanto você investiu", temCusto ? sinal(sobre) : "", DICAS.lucro)}
+        ${!temObs ? "" : kpi(`Rendeu desde ${dt(r.observado_desde)}`, comSinal(obs), esc(lista(tipos.filter((t) => t.n_observado).map((t) => t.tipo))), sinal(obs), DICAS.rendeu)}
+        ${filtrando || !temVendas ? "" : kpi("Lucro de vendas", real.itens.length ? comSinal(real.total) : "n/d", real.itens.length ? plural(real.itens.length, "venda", "vendas") : "Falta registrar a compra", real.itens.length ? sinal(real.total) : "", DICAS.vendas)}
+        ${filtrando || !real.ir_pago ? "" : kpi("Imposto retido", brl(real.ir_pago), "Somando compras e vendas lançadas")}
+      </section>
+      <section class="grid cols">
+        ${card("Lucro por investimento", "", com.length ? `<div id="c-res" class="chart" style="height:${Math.max(180, com.length * 38 + 50)}px"></div>` : vazio("Sem lucro para mostrar", "Falta informar quanto você investiu em cada um.", [["Informar valores", "atualizar"]]))}
+        ${card("Lucro por tipo", "",
+          tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Investido", n: 1 }, { t: "Lucro", n: 1, d: DICAS.lucro }, { t: "%", n: 1 }, ...(temObs ? [{ t: "Rendeu", n: 1, d: DICAS.rendeu }] : [])],
+            tipos.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? brl(t.custo) : "", t.n_custo ? pintado(t.sobre_custo, comSinal(t.sobre_custo)) : "",
+              t.n_custo && t.custo ? pctSinal(t.sobre_custo / t.custo) : "", ...(temObs ? [t.n_observado ? pintado(t.observado, comSinal(t.observado)) : ""] : [])])))}
+        ${card(filtrando ? `Investimentos: ${esc(rotulo)}` : "Meus investimentos", d.alertas_posicao ? 'Etiqueta "estimado": valor ainda não conferido com o extrato.' : "",
+          tabela([{ t: "Investimento" }, { t: "Tipo" }, { t: "Classe" }, { t: "Quantidade", n: 1 }, { t: "Preço médio", n: 1 }, { t: "Preço atual", n: 1 }, { t: "Valor", n: 1 }, { t: "Lucro", n: 1 }, { t: "%", n: 1 }], linhas,
+            ["Total", "", "", "", "", "", brl(soma("valor")), temCusto ? comSinal(sobre) : "", ""]), "wide")}
+        ${!temVendas ? "" : card("Vendas", filtrando ? "Mostra todas as vendas, sem o filtro." : "", realTab + semCusto, "wide", botao("Registrar compra ou venda", "transacoes", 0, 1))}
+      </section>`,
+    depois() {
+      $("f-classe").onchange = (e) => { S.classe = e.target.value; desenhar(); };
+      $("f-tipo").onchange = (e) => { S.tipo = e.target.value; desenhar(); };
+      if ($("f-limpar")) $("f-limpar").onclick = () => { S.classe = ""; S.tipo = ""; desenhar(); };
+      if (com.length) chart("c-res", {
+        grid: { right: 24 }, xAxis: eixoBRL, yAxis: { type: "category", data: com.map((p) => p.ticker || p.ativo.slice(0, 26)), axisLabel: { color: INK2 } },
+        tooltip: { formatter: (a) => { const p = com[a[0].dataIndex]; return `${esc(p.ativo)}<br><b>${comSinal(p.resultado)}</b> (${pctSinal(p.resultado_pct)})${p.metodo === "observado" ? `<br>desde ${dt(p.desde)}` : ""}`; } },
+        series: [barra({ data: com.map((p) => ({ value: +p.resultado.toFixed(2), itemStyle: { color: p.resultado >= 0 ? POS : NEG, borderRadius: p.resultado >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } })) })],
+      });
+    },
+  };
+}
+
 /* ---------------------------------------------------------------- aba: alocacao */
 function sugestao(d, x) {
   const linhas = d.alocacao.linhas.filter((l) => l.classe !== d.config.cash_class && l.alvo != null);
@@ -315,122 +407,72 @@ function sugestao(d, x) {
   return gaps.filter((g) => g.gap > 0.005).map((g) => ({ ...g, valor: g.gap * k }));
 }
 function vAlocacao(d) {
-  const a = d.alocacao, escala = Math.max(0.5, ...a.linhas.map((l) => Math.max(l.pct, l.max || 0))) * 1.08;
+  if (!d.tem.posicoes) return { html: topo(d) + card("Alocação", "", semInvestimentos()) };
+  const a = d.alocacao, temMetas = d.tem.metas, escala = Math.max(0.5, ...a.linhas.map((l) => Math.max(l.pct, l.max || 0))) * 1.08;
   const w = (v) => `${Math.min(100, v / escala * 100)}%`;
-  const tag = { ok: '<span class="tag ok">dentro da banda</span>', abaixo: '<span class="tag warn">abaixo da banda</span>', acima: '<span class="tag crit">acima da banda</span>' };
+  const ehCaixa = (l) => l.classe === d.config.cash_class;
+  const tag = { ok: '<span class="tag ok">dentro da faixa</span>', abaixo: '<span class="tag warn">abaixo da meta</span>', acima: '<span class="tag crit">acima da meta</span>' };
   const barras = a.linhas.map((l) => `<div class="aloc">
-      <div><span class="dot" style="background-color:${cor(l.classe, "classe")}"></span>${esc(l.classe)}</div>
-      <div class="track" title="Atual ${pct(l.pct)}, alvo ${pct(l.alvo)}, banda de ${pct(l.min)} a ${pct(l.max)}">
+      <div><span class="dot" style="background-color:${cor(l.classe, "classe")}"></span>${esc(ehCaixa(l) ? "Em conta, a investir" : l.classe)}</div>
+      <div class="track" title="Hoje ${pct(l.pct)}${l.alvo != null && !ehCaixa(l) ? `, meta ${pct(l.alvo)}, faixa de ${pct(l.min)} a ${pct(l.max)}` : ""}">
         ${l.alvo != null && l.max > 0 ? `<div class="band" style="left:${w(l.min)};width:calc(${w(l.max)} - ${w(l.min)})"></div>` : ""}
         <div class="bar" style="width:${w(l.pct)};background-color:${cor(l.classe, "classe")}"></div>
-        ${l.alvo != null && l.classe !== d.config.cash_class ? `<div class="alvo" style="left:${w(l.alvo)}"></div>` : ""}
+        ${l.alvo != null && !ehCaixa(l) ? `<div class="alvo" style="left:${w(l.alvo)}"></div>` : ""}
       </div>
-      <div class="num small">${pct(l.pct)} ${l.classe === d.config.cash_class ? "" : `<span class="muted">alvo ${pct(l.alvo, 0)}</span>`}<br>${l.classe === d.config.cash_class ? '<span class="tag">dinheiro a investir</span>' : tag[l.situacao] || ""}</div></div>`).join("");
-  const ehCaixa = (l) => l.classe === d.config.cash_class;
-  const distancia = (l) => l.falta == null ? "" : ehCaixa(l) ? '<span class="muted">a investir</span>' : Math.abs(l.falta) < 0.005 ? "no alvo" : l.falta > 0 ? `faltam ${brl(l.falta)}` : `<span class="muted">${brl(-l.falta)} acima</span>`;
-  const tab = tabela([{ t: "Classe" }, { t: "Valor", n: 1 }, { t: "Atual", n: 1 }, { t: "Alvo", n: 1 }, { t: "Banda", n: 1 }, { t: "Desvio", n: 1 }, { t: "Distância do alvo", n: 1 }, { t: "Instrumento" }],
-    a.linhas.map((l) => [esc(l.classe), brl(l.valor), pct(l.pct), ehCaixa(l) ? "" : pct(l.alvo), l.alvo == null || ehCaixa(l) ? "" : `${pct(l.min, 0)} a ${pct(l.max, 0)}`,
-      l.alvo == null || !l.situacao ? "" : `<span class="${l.situacao === "ok" ? "" : "neg"}">${((l.pct - l.alvo) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2, signDisplay: "always" })} p.p.</span>`,
-      distancia(l), `<span class="small muted">${esc(l.instrumento)}</span>`]),
-    ["Total", brl(d.blocos.base), pct(a.soma_pct), pct(a.soma_alvo), "", "", "", ""]);
+      <div class="num small">${pct(l.pct, 1)} ${ehCaixa(l) || l.alvo == null ? "" : `<span class="muted">meta ${pct(l.alvo, 0)}</span>`}<br>${ehCaixa(l) ? "" : tag[l.situacao] || ""}</div></div>`).join("");
+  const legenda = temMetas ? '<p class="leg-aloc small muted"><span><i class="l-bar"></i>quanto você tem</span><span><i class="l-alvo"></i>meta</span><span><i class="l-band"></i>faixa aceitável</span></p>' : "";
+  const distancia = (l) => l.falta == null ? "" : ehCaixa(l) ? "" : Math.abs(l.falta) < 0.005 ? "na meta" : l.falta > 0 ? `faltam ${brl(l.falta)}` : `<span class="muted">${brl(-l.falta)} a mais</span>`;
+  const temComo = a.linhas.some((l) => l.instrumento);
+  const tab = tabela([{ t: "Classe" }, { t: "Valor", n: 1 }, { t: "Hoje", n: 1 }, { t: "Meta", n: 1 }, { t: "Faixa aceitável", n: 1 }, { t: "Diferença", n: 1, d: "Hoje menos a meta, em pontos percentuais." }, { t: "Para chegar na meta", n: 1 }, ...(temComo ? [{ t: "Como investir" }] : [])],
+    a.linhas.map((l) => [esc(ehCaixa(l) ? "Em conta, a investir" : l.classe), brl(l.valor), pct(l.pct), ehCaixa(l) ? "" : pct(l.alvo), l.alvo == null || ehCaixa(l) ? "" : `${pct(l.min, 0)} a ${pct(l.max, 0)}`,
+      l.alvo == null || !l.situacao ? "" : `<span class="${l.situacao === "ok" ? "" : "neg"}">${((l.pct - l.alvo) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1, signDisplay: "always" })} p.p.</span>`,
+      distancia(l), ...(temComo ? [`<span class="small muted">${esc(l.instrumento)}</span>`] : [])]),
+    ["Total", brl(d.blocos.base), pct(a.soma_pct), temMetas ? pct(a.soma_alvo) : "", "", "", "", ...(temComo ? [""] : [])]);
   if (S.aporte == null) S.aporte = +(Math.max(0, d.blocos.caixa - d.reserva.para_reserva) || d.aporte_mensal || 0).toFixed(2);
   const sug = sugestao(d, S.aporte), tot = sug.reduce((s, g) => s + g.valor, 0);
-  const sugTab = tabela([{ t: "Classe" }, { t: "Instrumento da política" }, { t: "Valor", n: 1 }, { t: "Parte", n: 1 }],
-    sug.map((g) => [esc(g.classe), `<span class="small">${esc(g.instrumento)}</span>`, brl(g.valor), pct(S.aporte ? g.valor / S.aporte : 0, 1)]),
-    ["Total distribuído", "", brl(tot), S.aporte - tot > 0.005 ? `sobra ${brl(S.aporte - tot)}` : ""]);
+  const sugTab = tabela([{ t: "Classe" }, ...(temComo ? [{ t: "Como investir" }] : []), { t: "Valor", n: 1 }, { t: "Parte", n: 1 }],
+    sug.map((g) => [esc(g.classe), ...(temComo ? [`<span class="small">${esc(g.instrumento)}</span>`] : []), brl(g.valor), pct(S.aporte ? g.valor / S.aporte : 0, 0)]),
+    ["Total", ...(temComo ? [""] : []), brl(tot), S.aporte - tot > 0.005 ? `sobram ${brl(S.aporte - tot)}` : ""], "Nenhuma classe abaixo da meta.");
+  const semMetas = temMetas ? "" : `<div class="card wide">${vazio("Como você quer dividir seus investimentos?", "Defina uma meta para cada classe, como 70% em renda fixa e 30% em ações. O painel mostra o que está acima e o que está abaixo.", [["Definir metas", "metas", 1]])}</div>`;
   return {
-    html: `<section class="grid cols">
-      ${card("Alocação atual contra a meta", `Metas ${a.versao ? `versão ${esc(a.versao)}, vigente desde ${dt(a.vigencia)}` : "não cadastradas"}. Percentuais sobre a carteira de investimento (${brl(d.blocos.base)}), sem reserva. Faixa clara: banda. Traço: alvo.`, barras, "wide")}
-      ${card("Detalhe por classe", `Desvio: atual menos alvo, em pontos percentuais. Distância do alvo: quanto falta ou sobra em reais${d.reserva.para_reserva ? `, já sem os ${brl(d.reserva.para_reserva)} do caixa que vão completar a reserva` : ""}.`, tab, "wide")}
-      ${card("Simulação: onde aportar", `Conta mecânica: distribui o valor pelas classes abaixo do alvo, na proporção da distância. Não é ordem nem recomendação${d.ordem ? `, e pode diferir da ordem planejada de ${mes(d.ordem.mes)} (Visão geral), que segue as regras da política` : ""}.`,
-        `<div class="form noprint" style="margin-bottom:12px"><div><label for="i-aporte">Valor a aportar (R$)</label><input id="i-aporte" type="number" step="0.01" min="0" value="${S.aporte}"></div></div>${sugTab}`)}
-      ${card("Vencimentos da renda fixa", "Títulos da posição atual com data de vencimento.", tabela([{ t: "Vencimento" }, { t: "Ativo" }, { t: "Taxa" }, { t: "Valor", n: 1 }],
+    html: `${topo(d)}<section class="grid cols">${semMetas}
+      ${card(temMetas ? "Sua carteira e a meta" : "Sua carteira hoje", `Divisão ${S.priv ? "dos investimentos" : `de ${brl(d.blocos.base)} em investimentos`}, sem a reserva de emergência.`, barras + legenda, "wide", temMetas ? botao("Editar metas", "metas", 0, 1) : "")}
+      ${!temMetas ? "" : card("Detalhe por classe", d.reserva.para_reserva && !S.priv ? `Já descontados ${brl(d.reserva.para_reserva)} em conta que vão completar a reserva.` : "", tab, "wide")}
+      ${!temMetas ? "" : card("Onde colocar o próximo aporte", "Divide o valor entre as classes que estão abaixo da meta. É uma conta, não uma recomendação.",
+        `<div class="form noprint" style="margin-bottom:12px"><div><label for="i-aporte">Quanto você vai investir (R$)</label><input id="i-aporte" type="number" step="0.01" min="0" value="${S.aporte}"></div></div>${sugTab}`)}
+      ${!d.escada.length ? "" : card("Vencimentos", "Quando cada título de renda fixa vence.", tabela([{ t: "Vence em" }, { t: "Investimento" }, { t: "Taxa" }, { t: "Valor", n: 1 }],
         d.escada.map((e) => [dt(e.data), esc(e.ativo), esc(e.indexador), brl(e.valor)])))}
     </section>`,
-    depois() { $("i-aporte").onchange = (e) => { S.aporte = Math.max(0, +e.target.value || 0); desenhar(); }; },
-  };
-}
-
-/* ---------------------------------------------------------------- aba: lucros */
-function vResultado(d) {
-  const r = d.resultado, todas = d.posicoes.filter((p) => p.valor), ps = filtradas().filter((p) => p.valor);
-  const filtrando = !!(S.classe || S.tipo), rotulo = [S.tipo, S.classe].filter(Boolean).join(", ");
-  const tipos = porTipo(ps), soma = (k) => tipos.reduce((t, x) => t + x[k], 0);
-  const custo = soma("custo"), sobre = soma("sobre_custo"), obs = soma("observado"), temCusto = soma("n_custo") > 0, temObs = soma("n_observado") > 0;
-  const com = ps.filter((p) => p.resultado != null).sort((a, b) => a.resultado - b.resultado);
-  const linhas = [...ps].sort((a, b) => b.valor - a.valor).map((p) => [
-    `${esc(p.ativo)}${p.alerta ? ` <span class="tag warn" title="${esc(p.obs)}">estimado</span>` : ""}<br><span class="muted small">${esc(p.indexador)}${p.vencimento ? `, vence em ${dt(p.vencimento)}` : ""}</span>`,
-    esc(p.tipo), esc(p.classe), qtd(p.quantidade), p.preco_medio == null ? "" : brl(p.preco_medio), p.preco_mercado == null ? "" : brl(p.preco_mercado),
-    brl(p.valor), p.resultado == null ? '<span class="muted">n/d</span>' : `<span class="${sinal(p.resultado)}">${comSinal(p.resultado)}</span>`,
-    p.resultado_pct == null ? "" : `<span class="${sinal(p.resultado_pct)}">${pct(p.resultado_pct)}</span>`, `<span class="small muted">${metodo(p)}</span>`]);
-  const unicos = (k) => [...new Set(d.posicoes.map((p) => p[k]))].sort();
-  const sel = (id, vals, atual, rot) => `<select id="${id}" aria-label="${rot}"><option value="">${rot}</option>${vals.map((v) => `<option ${v === atual ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`;
-  const filtros = `<div class="filters noprint"><span class="eyebrow">Filtrar a aba</span>${sel("f-classe", unicos("classe"), S.classe, "Todas as classes")}${sel("f-tipo", unicos("tipo"), S.tipo, "Todos os tipos")}
-    ${filtrando ? `<button class="btn" id="f-limpar">Limpar filtros</button><span class="muted small">Mostrando ${ps.length} de ${todas.length} posições. Totais, gráfico e tabelas abaixo seguem o filtro.</span>` : `<span class="muted small">${todas.length} posições</span>`}</div>`;
-  const real = r.realizado;
-  const realTab = tabela([{ t: "Data" }, { t: "Ticker" }, { t: "Qtd", n: 1 }, { t: "Venda", n: 1 }, { t: "Custo", n: 1 }, { t: "Resultado", n: 1 }],
-    real.itens.map((i) => [dt(i.data), esc(i.ticker) + (i.base === "posicao" ? ` <span class="tag" title="Sem compra em transacoes.csv: custo = quantidade vezes o preço médio de ${brl(i.pm)} registrado em posicoes.csv (posição de ${dt(i.base_data)})">preço médio</span>` : ""), qtd(i.quantidade), brl(i.venda), brl(i.custo), `<span class="${sinal(i.resultado)}">${comSinal(i.resultado)}</span>`]),
-    ["Total", "", "", "", "", comSinal(real.total)]);
-  const semCusto = real.sem_custo.length ? `<p class="small muted">Fora do total, por falta de custo: ${real.sem_custo.map((s) => `${esc(s.ativo)} em ${dt(s.data)}, vendido por ${brl(s.venda)}`).join("; ")}. Lance a compra em transacoes.csv para entrar na conta.</p>` : "";
-  return {
-    html: `${filtros}<section class="kpis">
-        ${kpi(filtrando ? `Valor: ${esc(rotulo)}` : "Valor das posições", brl(soma("valor")), `${ps.length} posição(ões) em ${dt(d.snapshot)}`)}
-        ${kpi("Lucro não realizado sobre custo", temCusto ? comSinal(sobre) : "n/d", temCusto ? `${custo ? pct(sobre / custo) : ""} sobre o custo de ${brl(custo)} (${esc(lista(tipos.filter((t) => t.n_custo).map((t) => t.tipo)))})` : `Nenhuma posição com preço médio ${filtrando ? "neste filtro" : "no arquivo"}`, temCusto ? sinal(sobre) : "")}
-        ${!temObs && !filtrando ? "" : kpi("Rendimento observado", temObs ? comSinal(obs) : "n/d", temObs ? `Desde ${dt(r.observado_desde)} (${esc(lista(tipos.filter((t) => t.n_observado).map((t) => t.tipo)))}). Não é o lucro desde a aplicação.` : `Nenhum título nessa condição ${filtrando ? "neste filtro" : ""}`, temObs ? sinal(obs) : "")}
-        ${filtrando ? "" : kpi("Resultado realizado", real.itens.length ? comSinal(real.total) : "n/d", real.itens.length ? `${real.itens.length} venda(s) com custo${real.sem_custo.length ? `; ${real.sem_custo.length} sem custo ficam fora da soma` : ""}` : `${real.sem_custo.length} venda(s) sem custo: não dá para calcular`, real.itens.length ? sinal(real.total) : "")}
-        ${filtrando ? "" : kpi("IR retido registrado", brl(real.ir_pago), "Soma de ir_brl em transacoes.csv")}
-      </section>
-      <section class="grid cols">
-        ${card("Resultado por posição", "Só posições com resultado calculável. À direita do zero, ganho; à esquerda, perda.", com.length ? `<div id="c-res" class="chart" style="height:${Math.max(180, com.length * 38 + 50)}px"></div>` : `<p class="muted">Nenhuma posição ${filtrando ? "deste filtro " : ""}tem resultado calculável: falta o custo de aquisição no arquivo.</p>`)}
-        ${card("Resultado por tipo de produto", temObs ? "Soma das posições de cada tipo. As duas medidas não se somam: cobrem períodos diferentes." : "Soma das posições de cada tipo: valor menos o custo de aquisição.",
-          tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Custo", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "%", n: 1 }, ...(temObs ? [{ t: "Rendimento observado", n: 1 }] : []), { t: "Sem cálculo" }],
-            tipos.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? brl(t.custo) : "", t.n_custo ? `<span class="${sinal(t.sobre_custo)}">${comSinal(t.sobre_custo)}</span>` : "",
-              t.n_custo && t.custo ? pct(t.sobre_custo / t.custo) : "", ...(temObs ? [t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : ""] : []), `<span class="small">${semCalculo(t)}</span>`])))}
-        ${card(filtrando ? `Posições: ${esc(rotulo)}` : "Posições", `Posição de ${dt(d.snapshot)}. Etiqueta "estimado": valor carregado, estimado ou por premissa (passe o mouse para ler a observação).`,
-          tabela([{ t: "Ativo" }, { t: "Tipo" }, { t: "Classe" }, { t: "Qtd", n: 1 }, { t: "Preço médio", n: 1 }, { t: "Preço atual", n: 1 }, { t: "Valor", n: 1 }, { t: "Resultado", n: 1 }, { t: "%", n: 1 }, { t: "Método" }], linhas,
-            ["Total", "", "", "", "", "", brl(soma("valor")), "", "", ""]), "wide")}
-        ${card("Resultado realizado", `Venda menos o custo. Custo: média das compras em transacoes.csv; sem compra lá, o preço médio da posição em posicoes.csv (etiqueta "preço médio").${filtrando ? " Este quadro não segue o filtro: mostra todas as vendas." : ""}`, realTab + semCusto, "wide")}
-      </section>`,
-    depois() {
-      $("f-classe").onchange = (e) => { S.classe = e.target.value; desenhar(); };
-      $("f-tipo").onchange = (e) => { S.tipo = e.target.value; desenhar(); };
-      if ($("f-limpar")) $("f-limpar").onclick = () => { S.classe = ""; S.tipo = ""; desenhar(); };
-      if (com.length) chart("c-res", {
-        grid: { right: 24 }, xAxis: eixoBRL, yAxis: { type: "category", data: com.map((p) => p.ticker || p.ativo.slice(0, 26)), axisLabel: { color: INK2 } },
-        tooltip: { formatter: (a) => { const p = com[a[0].dataIndex]; return `${esc(p.ativo)}<br><b>${comSinal(p.resultado)}</b> (${pct(p.resultado_pct)})<br>${metodo(p)}`; } },
-        series: [barra({ data: com.map((p) => ({ value: +p.resultado.toFixed(2), itemStyle: { color: p.resultado >= 0 ? POS : NEG, borderRadius: p.resultado >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } })) })],
-      });
-    },
+    depois() { if ($("i-aporte")) $("i-aporte").onchange = (e) => { S.aporte = Math.max(0, +e.target.value || 0); desenhar(); }; },
   };
 }
 
 /* ---------------------------------------------------------------- aba: gastos */
 function vGastos(d) {
-  if (!d.gastos.length) return { html: card("Gastos", "", '<p class="muted">Sem lançamentos em data/expenses/despesas.csv.</p>') };
+  if (!d.gastos.length) return { html: topo(d) + card("Gastos", "", vazio("Nenhum gasto ou entrada ainda", "Registre o que entra e o que sai para ver quanto sobra no mês.", [["Registrar gasto ou entrada", "despesas", 1], ["Deixar uma IA preencher", "ia"]])) };
   if (!S.mes || !d.gastos.some((g) => g.mes === S.mes)) S.mes = d.gastos[d.gastos.length - 1].mes;
   const g = d.gastos.find((x) => x.mes === S.mes);
   const itens = tabela([{ t: "Data" }, { t: "Descrição" }, { t: "Categoria" }, { t: "Tipo" }, { t: "Valor", n: 1 }],
     g.itens.map((i) => [dt(i.data), `${esc(i.descricao)}${i.obs ? `<br><span class="muted small">${esc(i.obs)}</span>` : ""}`, esc(i.categoria),
       `<span class="tag ${i.tipo === "Entrada" ? "ok" : ""}">${esc(i.tipo)}</span>`, brl(i.valor)]));
   return {
-    html: `<div class="row noprint" style="margin-bottom:14px"><label for="s-mes" class="muted">Mês</label>
+    html: `${topo(d)}<div class="filters noprint"><label for="s-mes" class="muted">Mês</label>
         <select id="s-mes">${d.gastos.map((x) => `<option value="${x.mes}" ${x.mes === S.mes ? "selected" : ""}>${mes(x.mes)}</option>`).join("")}</select>
-        <button class="btn" id="b-novo-gasto">Novo lançamento</button></div>
+        <span class="empurra"></span>${botao("Novo gasto ou entrada", "despesas", 1)}</div>
       <section class="kpis">
-        ${kpi(`Renda de ${mes(g.mes)}`, brl(g.renda), g.outras_entradas ? `Outras entradas que não são renda: ${brl(g.outras_entradas)}` : "Salário e rendimentos")}
-        ${kpi("Gastos", brl(g.gastos), `Fixo de ${brl(g.fixo)} e variável de ${brl(g.variavel)}`)}
-        ${kpi("Sobra", comSinal(g.sobra), "Renda menos gastos", sinal(g.sobra))}
-        ${kpi("Taxa de poupança", pct(g.taxa), "(renda − gastos) ÷ renda, no mês", sinal(g.taxa))}
+        ${kpi(`Renda de ${mes(g.mes)}`, brl(g.renda), g.outras_entradas && !S.priv ? `Mais ${brl(g.outras_entradas)} de outras entradas` : "", "", `Entradas com a categoria ${lista(d.config.income_categories)}. Outras entradas, como reembolso, não contam como renda.`)}
+        ${kpi("Gastos", brl(g.gastos), S.priv ? "Fixos e variáveis" : `${brl(g.fixo)} fixos e ${brl(g.variavel)} variáveis`)}
+        ${kpi("Sobrou", comSinal(g.sobra), "Renda menos gastos", sinal(g.sobra))}
+        ${kpi("Quanto guardei", pct(g.taxa, 0), g.taxa == null ? "Sem renda lançada no mês" : "da renda do mês", sinal(g.taxa), DICAS.guardei)}
       </section>
-      ${parcial(d, g.mes) ? `<p class="note">${mes(g.mes)} ainda está em andamento: os números vão só até o último lançamento (${dt(g.itens[g.itens.length - 1].data)}). Sobra e taxa de poupança mudam quando entrarem os gastos que faltam.</p>` : ""}
+      ${parcial(d, g.mes) ? `<p class="note">${mes(g.mes)} ainda não fechou. Os números vão até ${dt(g.itens[g.itens.length - 1].data)}.</p>` : ""}
       <section class="grid cols">
-        ${card("Renda e gastos por mês", "Gastos empilhados em fixo e variável, ao lado da renda.", '<div id="c-meses" class="chart"></div>')}
-        ${card(`Gastos de ${mes(g.mes)} por categoria`, "Só saídas. Entradas ficam de fora.", `<div id="c-cats" class="chart" style="height:${Math.max(200, g.cats.length * 34 + 40)}px"></div>`)}
-        ${card(`Lançamentos de ${mes(g.mes)}`, `${g.itens.length} lançamento(s) em despesas.csv.`, itens, "wide")}
+        ${card("Renda e gastos por mês", "", '<div id="c-meses" class="chart"></div>')}
+        ${card(`Para onde foi o dinheiro em ${mes(g.mes)}`, "", g.cats.length ? `<div id="c-cats" class="chart" style="height:${Math.max(200, g.cats.length * 34 + 40)}px"></div>` : '<p class="muted">Nenhum gasto neste mês.</p>')}
+        ${card(`Lançamentos de ${mes(g.mes)}`, "", itens, "wide")}
       </section>`,
     depois() {
       $("s-mes").onchange = (e) => { S.mes = e.target.value; desenhar(); };
-      $("b-novo-gasto").onclick = () => abrirForm("despesas", null);
       chart("c-meses", {
         legend: {}, xAxis: { type: "category", data: d.gastos.map((x) => mes(x.mes)) }, yAxis: eixoBRL,
         series: [barra({ name: "Renda", data: d.gastos.map((x) => +x.renda.toFixed(2)), itemStyle: { color: SERIES[0], borderRadius: [4, 4, 0, 0] } }),
@@ -438,7 +480,7 @@ function vGastos(d) {
           barra({ name: "Gasto variável", stack: "g", data: d.gastos.map((x) => +x.variavel.toFixed(2)), itemStyle: { color: SERIES[1], borderRadius: [4, 4, 0, 0], borderColor: SURFACE, borderWidth: 1 } })],
       });
       const c = [...g.cats].reverse();
-      chart("c-cats", {
+      if (c.length) chart("c-cats", {
         grid: { right: 70 }, xAxis: eixoBRL, yAxis: { type: "category", data: c.map((x) => x[0]), axisLabel: { color: INK2 } },
         series: [barra({ data: c.map((x) => +x[1].toFixed(2)), itemStyle: { color: SERIES[0], borderRadius: [0, 4, 4, 0] },
           label: { show: true, position: "right", color: INK2, formatter: (p) => pct(g.gastos ? p.value / g.gastos : 0, 0) } })],
@@ -457,38 +499,39 @@ function simular(s) {
 function vEvolucao(d) {
   const cfg = d.config.simulator || {};
   if (!S.sim) S.sim = { saldo: +d.blocos.base.toFixed(2), aporte: d.aporte_mensal || 0, anos: cfg.years || 20, taxas: (cfg.real_rates || [0.03, 0.05, 0.07]).slice(0, 3) };
-  const s = S.sim, r = simular(s), nomes = ["Cenário baixo", "Cenário médio", "Cenário alto"];
-  const fim = tabela([{ t: "Cenário" }, { t: "Taxa real a.a.", n: 1 }, { t: `Patrimônio em ${s.anos} anos`, n: 1 }, { t: "Total aportado", n: 1 }, { t: "Ganho", n: 1 }],
-    r.cen.map((c, i) => [nomes[i], pct(s.taxas[i]), brl(c[c.length - 1]), brl(r.aportado[r.aportado.length - 1]), comSinal(c[c.length - 1] - r.aportado[r.aportado.length - 1])]));
+  const s = S.sim, r = simular(s), nomes = ["Pessimista", "Provável", "Otimista"];
+  const fim = tabela([{ t: "Cenário" }, { t: "Rendimento ao ano", n: 1 }, { t: `Em ${plural(s.anos, "ano", "anos")}`, n: 1 }, { t: "Você terá colocado", n: 1 }, { t: "Ganho", n: 1 }],
+    r.cen.map((c, i) => [nomes[i], pct(s.taxas[i], 1), brl(c[c.length - 1]), brl(r.aportado[r.aportado.length - 1]), comSinal(c[c.length - 1] - r.aportado[r.aportado.length - 1])]));
   const campo = (id, rot, v, step) => `<div><label for="${id}">${rot}</label><input id="${id}" type="number" step="${step}" value="${v}"></div>`;
-  const evoTab = tabela([{ t: "Posição" }, { t: "Patrimônio", n: 1 }, { t: "Carteira", n: 1 }, { t: "Caixa", n: 1 }, { t: "Reserva", n: 1 }, { t: "Lucro sobre custo", n: 1 }],
+  const evoTab = tabela([{ t: "Data" }, { t: "Patrimônio", n: 1 }, { t: "Investimentos", n: 1 }, { t: "Em conta", n: 1 }, { t: "Reserva", n: 1 }, { t: "Lucro até ali", n: 1 }],
     [...d.evolucao].reverse().map((e) => [dt(e.data), brl(e.total), brl(e.base), brl(e.caixa), brl(e.reserva), comSinal(e.sobre_custo)]));
+  const tem = d.tem.posicoes, temAportes = d.aportes.length, temPassiva = d.passiva.meses.some((m) => m.valor);
   return {
-    html: `<section class="grid cols">
-      ${card("Evolução do patrimônio", "Uma barra por posição registrada, dividida por bloco.", '<div id="c-evo2" class="chart tall"></div>')}
-      ${card("Aportes por mês", "Executado só conta com comprovante. Planejado é o último plano do mês.", '<div id="c-ap" class="chart tall"></div>')}
-      ${card("Renda passiva recebida", "Entradas das categorias de rendimento em despesas.csv, por mês.", '<div id="c-pass" class="chart"></div>')}
-      ${card("Posições registradas", "Histórico dos snapshots, do mais recente para o mais antigo.", evoTab)}
-      ${card("Simulador de projeção", "Premissa, não previsão. Valores em reais de hoje (taxa real, já sem a inflação). Aporte no fim de cada mês. Mude as taxas e veja o quanto o resultado depende delas.",
-        `<div class="form noprint" style="margin-bottom:14px">${campo("sim-saldo", "Saldo inicial (R$)", s.saldo, "0.01")}${campo("sim-aporte", "Aporte mensal (R$)", s.aporte, "0.01")}${campo("sim-anos", "Prazo (anos)", s.anos, "1")}
-          ${s.taxas.map((t, i) => campo("sim-t" + i, `${nomes[i]} (% real a.a.)`, +(t * 100).toFixed(2), "0.1")).join("")}</div>
+    html: `${topo(d)}<section class="grid cols">
+      ${!tem ? "" : card("Evolução do patrimônio", "Cada barra é uma atualização da carteira.", '<div id="c-evo2" class="chart tall"></div>')}
+      ${!temAportes ? "" : card("Aportes por mês", "O que você planejou e o que fez.", '<div id="c-ap" class="chart tall"></div>')}
+      ${!temPassiva ? "" : card("Rendimentos recebidos", "Dividendos e juros lançados, por mês.", '<div id="c-pass" class="chart"></div>')}
+      ${!tem ? "" : card("Histórico", "", evoTab)}
+      ${card("Simulador", "E se você continuar investindo? Valores em reais de hoje, já descontada a inflação. É uma simulação, não uma previsão.",
+        `<div class="form noprint" style="margin-bottom:14px">${campo("sim-saldo", "Quanto você tem hoje (R$)", s.saldo, "0.01")}${campo("sim-aporte", "Aporte por mês (R$)", s.aporte, "0.01")}${campo("sim-anos", "Por quantos anos", s.anos, "1")}
+          ${s.taxas.map((t, i) => campo("sim-t" + i, `${nomes[i]} (% ao ano)`, +(t * 100).toFixed(2), "0.1")).join("")}</div>
          <div id="c-sim" class="chart tall"></div>${fim}`, "wide")}
     </section>`,
     depois() {
-      gEvolucao("c-evo2", d);
-      chart("c-ap", {
+      if (tem) gEvolucao("c-evo2", d);
+      if (temAportes) chart("c-ap", {
         legend: {}, xAxis: { type: "category", data: d.aportes.map((a) => mes(a.mes)) }, yAxis: eixoBRL,
-        series: [barra({ name: "Executado", data: d.aportes.map((a) => +a.executado.toFixed(2)), itemStyle: { color: SERIES[0], borderRadius: [4, 4, 0, 0] } }),
+        series: [barra({ name: "Feito", data: d.aportes.map((a) => +a.executado.toFixed(2)), itemStyle: { color: SERIES[0], borderRadius: [4, 4, 0, 0] } }),
           barra({ name: "Planejado", data: d.aportes.map((a) => +a.planejado.toFixed(2)), itemStyle: { color: SERIES[1], borderRadius: [4, 4, 0, 0] } })],
       });
-      chart("c-pass", {
+      if (temPassiva) chart("c-pass", {
         xAxis: { type: "category", data: d.passiva.meses.map((m) => mes(m.mes)) }, yAxis: eixoBRL,
-        series: [barra({ name: "Renda passiva", data: d.passiva.meses.map((m) => +m.valor.toFixed(2)), itemStyle: { color: SERIES[0], borderRadius: [4, 4, 0, 0] } })],
+        series: [barra({ name: "Rendimentos", data: d.passiva.meses.map((m) => +m.valor.toFixed(2)), itemStyle: { color: SERIES[0], borderRadius: [4, 4, 0, 0] } })],
       });
       chart("c-sim", {
         legend: {}, tooltip: { axisPointer: { type: "line" } }, xAxis: { type: "category", data: r.anos.map((a) => `${a} a`), boundaryGap: false }, yAxis: eixoBRL,
         series: [...r.cen.map((c, i) => ({ name: `${nomes[i]} (${pct(s.taxas[i], 1)})`, type: "line", symbol: "none", lineStyle: { width: 2 }, data: c.map((v) => +v.toFixed(2)), endLabel: { show: true, color: INK2, formatter: (p) => brlAbbr(p.value) } })),
-          { name: "Total aportado", type: "line", symbol: "none", lineStyle: { width: 2, type: "dashed", color: MUTED }, itemStyle: { color: MUTED }, data: r.aportado.map((v) => +v.toFixed(2)) }],
+          { name: "Você terá colocado", type: "line", symbol: "none", lineStyle: { width: 2, type: "dashed", color: MUTED }, itemStyle: { color: MUTED }, data: r.aportado.map((v) => +v.toFixed(2)) }],
         grid: { right: 64 },
       });
       const ler = () => {
@@ -501,77 +544,60 @@ function vEvolucao(d) {
   };
 }
 
-/* ---------------------------------------------------------------- aba: gestao */
+/* ---------------------------------------------------------------- aba: lancamentos */
+const colDe = (tabela) => Object.fromEntries(S.schema[tabela].columns.map((c) => [c.name, c]));
+const semParenteses = (t) => String(t).replace(/\s*\(.*\)$/, "");
+/* Mostra o valor de uma celula do arquivo do jeito que a pessoa le: data, reais, porcentagem. */
+function celula(c, v) {
+  if (v === "" || v == null) return "";
+  const n = Number(v);
+  if (c.type === "date") return dt(v);
+  if (c.type === "month") return mes(v);
+  if (c.type === "money") return isNaN(n) ? esc(v) : brl(n);
+  if (c.type === "fraction") return isNaN(n) ? esc(v) : pct(n, 0);
+  if (c.type === "number") return isNaN(n) ? esc(v) : c.name === "quantidade" ? qtd(n) : n.toLocaleString("pt-BR", { maximumFractionDigits: 6 });
+  if (c.type === "select") return esc(semParenteses(c.options[v] || v));
+  const t = String(v);
+  return t.length > 70 ? `<span title="${esc(t)}">${esc(t.slice(0, 70))}…</span>` : esc(t);
+}
 function vGestao(d) {
-  const sub = `<div class="subtabs noprint">${[["lancamentos", "Lançamentos"], ["notas", "Notas e relatórios"]].map(([k, t]) => `<button class="btn ${S.gestao === k ? "on" : ""}" data-sub="${k}">${t}</button>`).join("")}</div>`;
+  const sub = `<div class="subtabs noprint">${[["lancamentos", "Lançamentos"], ["notas", "Notas"]].map(([k, t]) => `<button class="btn ${S.gestao === k ? "on" : ""}" data-sub="${k}">${t}</button>`).join("")}</div>`;
   const liga = () => document.querySelectorAll("[data-sub]").forEach((b) => (b.onclick = () => { S.gestao = b.dataset.sub; desenhar(); }));
   if (S.gestao === "notas") return vNotas(d, sub, liga);
-  const sc = S.schema[S.tabela], ro = d.config.append_only;
+  if (!S.schema[S.tabela]) S.tabela = "despesas";
+  const sc = S.schema[S.tabela], ro = d.config.append_only, cols = colDe(S.tabela);
   if (!S.linhas) { api("/api/table/" + S.tabela).then((t) => { S.linhas = t; desenhar(); }).catch((e) => toast(e.message, true)); }
   const t = S.linhas || { columns: [], rows: [] };
   const busca = S.busca.toLowerCase();
   const rows = [...t.rows].reverse().filter((r) => !busca || t.columns.some((c) => String(r[c]).toLowerCase().includes(busca)));
-  const tipos = Object.fromEntries(sc.columns.map((c) => [c.name, c.type]));
-  const corpo = tabela([...t.columns.map((c) => ({ t: c, n: tipos[c] === "number" })), { t: "" }],
-    rows.slice(0, 300).map((r) => [...t.columns.map((c) => { const v = esc(r[c]); return v.length > 90 ? `<span title="${v}">${v.slice(0, 90)}…</span>` : v; }),
-      ro ? "" : `<span class="row noprint" style="flex-wrap:nowrap"><button class="btn mini" data-ed="${r._id}">Editar</button><button class="btn mini danger" data-del="${r._id}">Excluir</button></span>`]));
+  // so aparecem as colunas que tem algum valor, para a tabela nao ficar cheia de vazios
+  const visiveis = t.columns.filter((c) => sc.required.includes(c) || t.rows.some((r) => r[c]));
+  const col = (c) => cols[c] || { name: c, type: "text", label: c, options: {} };
+  const numerica = (c) => ["number", "money", "fraction"].includes(col(c).type);
+  const corpo = tabela([...visiveis.map((c) => ({ t: esc(col(c).label), n: numerica(c), d: `Coluna ${c} do arquivo` })), { t: "" }],
+    rows.slice(0, 300).map((r) => [...visiveis.map((c) => celula(col(c), r[c])),
+      ro ? "" : `<span class="row noprint" style="flex-wrap:nowrap"><button class="btn mini" data-ed="${r._id}">Editar</button><button class="btn mini danger" data-del="${r._id}">Excluir</button></span>`]),
+    null, busca ? "Nada encontrado com essa busca." : "Nada lançado ainda.");
   return {
-    html: `${sub}${card("Lançamentos", `Arquivo: <code>${esc(sc.path)}</code>. ${ro ? "Pasta em modo somente acréscimo: dá para incluir linha, não editar nem apagar." : "Toda gravação gera cópia em .backups/ antes."}`,
-      `<div class="row noprint" style="margin-bottom:12px">
-         <select id="s-tab">${Object.entries(S.schema).map(([k, v]) => `<option value="${k}" ${k === S.tabela ? "selected" : ""}>${esc(v.label)}</option>`).join("")}</select>
-         <input id="i-busca" placeholder="Filtrar linhas" value="${esc(S.busca)}">
-         <button class="btn primary" id="b-novo">Nova linha</button>
-         <span class="muted small">${rows.length} linha(s)${rows.length > 300 ? ", mostrando 300" : ""}, da mais recente para a mais antiga</span></div>${corpo}`, "wide")}`,
+    html: `${sub}${card(esc(sc.label), `${esc(sc.about)}${ro ? " Esta pasta só aceita inclusão: não dá para editar nem apagar." : ""}`,
+      `<div class="filters noprint">
+         <select id="s-tab" aria-label="O que mostrar">${Object.entries(S.schema).map(([k, v]) => `<option value="${k}" ${k === S.tabela ? "selected" : ""}>${esc(v.label)}</option>`).join("")}</select>
+         <input id="i-busca" placeholder="Buscar" aria-label="Buscar" value="${esc(S.busca)}">
+         <span class="muted small">${plural(rows.length, "linha", "linhas")}${rows.length > 300 ? ", mostrando as 300 mais recentes" : ""}</span>
+         <span class="empurra"></span><button class="btn primary" id="b-novo">Adicionar</button></div>${corpo}
+       <p class="muted small arquivo">Arquivo: <code>${esc(sc.path)}</code></p>`, "wide")}`,
     depois() {
       liga();
       $("s-tab").onchange = (e) => { S.tabela = e.target.value; S.linhas = null; S.busca = ""; desenhar(); };
       $("i-busca").onchange = (e) => { S.busca = e.target.value; desenhar(); };
-      $("b-novo").onclick = () => abrirForm(S.tabela, null);
+      $("b-novo").onclick = () => (S.tabela === "posicoes" ? abrirInvestimento() : abrirForm(S.tabela, null));
       document.querySelectorAll("[data-ed]").forEach((b) => (b.onclick = () => abrirForm(S.tabela, t.rows[+b.dataset.ed])));
       document.querySelectorAll("[data-del]").forEach((b) => (b.onclick = async () => {
         const r = t.rows[+b.dataset.del];
-        if (!confirm("Excluir esta linha do arquivo? Uma cópia fica em .backups/.")) return;
+        if (!confirm("Excluir esta linha? Uma cópia de segurança fica guardada.")) return;
         try { await api(`/api/table/${S.tabela}/${r._id}?hash=${r._hash}`, { method: "DELETE" }); toast("Linha excluída."); await carregar(true); } catch (e) { toast(e.message, true); }
       }));
     },
-  };
-}
-
-async function abrirForm(nome, linha) {
-  const sc = S.schema[nome];
-  let dados = S.linhas && S.tabela === nome ? S.linhas : null;
-  if (!dados) { try { dados = await api("/api/table/" + nome); } catch (e) { return toast(e.message, true); } }
-  const hoje = new Date().toISOString().slice(0, 10);
-  const padrao = (c) => linha ? linha[c.name] : c.type === "date" && ["data", "data_snapshot", "data_ref"].includes(c.name) ? hoje : c.type === "month" ? hoje.slice(0, 7)
-    : c.name === "fonte" ? `Lançamento manual no Dashboard Financeiro em ${dt(hoje)}` : c.name === "status" && c.type.includes("liquidado") ? "liquidado" : "";
-  const campos = sc.columns.map((c) => {
-    const req = sc.required.includes(c.name) ? " *" : "", id = "f-" + c.name, v = esc(padrao(c));
-    let inp;
-    if (c.type.startsWith("select:")) inp = `<select id="${id}"><option value=""></option>${c.type.slice(7).split(",").map((o) => `<option ${o === padrao(c) ? "selected" : ""}>${o}</option>`).join("")}</select>`;
-    else if (c.name === "obs") inp = `<textarea id="${id}" rows="2">${v}</textarea>`;
-    else if (c.type === "number") inp = `<input id="${id}" inputmode="decimal" value="${v}" placeholder="1234.56">`;
-    else if (c.type === "date") inp = `<input id="${id}" type="date" value="${v}">`;
-    else if (c.type === "month") inp = `<input id="${id}" type="month" value="${v}">`;
-    else {
-      const vals = [...new Set(dados.rows.map((r) => r[c.name]).filter(Boolean))];
-      const lista = vals.length && vals.length <= 60 && c.name !== "fonte" ? `<datalist id="dl-${c.name}">${vals.map((x) => `<option value="${esc(x)}">`).join("")}</datalist>` : "";
-      inp = `<input id="${id}" value="${v}" ${lista ? `list="dl-${c.name}"` : ""}>${lista}`;
-    }
-    return `<div class="field"><label for="${id}">${c.name}${req}</label>${inp}</div>`;
-  }).join("");
-  $("drawer-in").innerHTML = `<h2 style="margin-top:0">${linha ? "Editar linha" : "Nova linha"}: ${esc(sc.label)}</h2>
-    <p class="muted small">Grava em <code>${esc(sc.path)}</code>. Número com ponto decimal, data AAAA-MM-DD. Campos com * são obrigatórios; a fonte diz de onde o número veio.</p>
-    ${campos}<div class="row end"><button class="btn" id="f-cancelar">Cancelar</button><button class="btn primary" id="f-salvar">Salvar no arquivo</button></div>`;
-  $("drawer").classList.add("open");
-  const fechar = () => $("drawer").classList.remove("open");
-  $("f-cancelar").onclick = fechar;
-  $("f-salvar").onclick = async () => {
-    const row = Object.fromEntries(sc.columns.map((c) => [c.name, $("f-" + c.name).value]));
-    try {
-      if (linha) await api(`/api/table/${nome}/${linha._id}`, { method: "PUT", body: { hash: linha._hash, row } });
-      else await api("/api/table/" + nome, { method: "POST", body: { row } });
-      fechar(); toast("Gravado em " + sc.path); await carregar(true);
-    } catch (e) { toast(e.message, true); }
   };
 }
 
@@ -611,58 +637,59 @@ function md(src) {
   return out.join("\n");
 }
 
+const PASTAS_NOTAS = { goals: "Metas", rules: "Regras", reports: "Relatórios", research: "Estudos" };
 function vNotas(d, sub, liga) {
   if (!S.docs) { api("/api/docs").then((x) => { S.docs = x; desenhar(); }).catch((e) => toast(e.message, true)); }
   const grupos = {};
   (S.docs || []).forEach((x) => (grupos[x.path.split("/").slice(0, -1).join("/")] ||= []).push(x));
-  const lista = Object.keys(grupos).sort().map((g) => `<h3>${esc(g)}</h3>${grupos[g].map((x) => `<button data-doc="${esc(x.path)}" class="${S.doc && S.doc.path === x.path ? "on" : ""}">${esc(x.path.split("/").pop())}</button>`).join("")}`).join("");
-  let painel = '<p class="muted">Escolha um arquivo à esquerda ou crie uma nota nova.</p>';
+  const nomeGrupo = (g) => { const [p, ...resto] = g.split("/"); return [PASTAS_NOTAS[p] || p, ...resto].join(" / "); };
+  const lista = Object.keys(grupos).sort().map((g) => `<h3 title="${esc(g)}/">${esc(nomeGrupo(g))}</h3>${grupos[g].map((x) => `<button data-doc="${esc(x.path)}" class="${S.doc && S.doc.path === x.path ? "on" : ""}">${esc(x.path.split("/").pop())}</button>`).join("")}`).join("");
+  let painel = '<p class="muted">Escolha uma nota ao lado ou crie uma nova. Bom lugar para planos, relatórios e resumos da sua IA.</p>';
   if (S.doc && S.editando) {
-    painel = `<div class="field"><label for="d-path">Caminho (goals/, rules/, reports/ ou research/, terminando em .md)</label><input id="d-path" value="${esc(S.doc.path)}" ${S.doc.novo ? "" : "readonly"}></div>
-      <textarea id="d-txt" class="editor">${esc(S.doc.content)}</textarea>
-      <div class="row end" style="margin-top:10px"><button class="btn" id="d-cancelar">Cancelar</button><button class="btn primary" id="d-salvar">Salvar arquivo</button></div>`;
+    painel = `<div class="field"><label for="d-path">Onde salvar</label><input id="d-path" value="${esc(S.doc.path)}" ${S.doc.novo ? "" : "readonly"}><small class="hint">Pasta goals, rules, reports ou research. O nome termina em .md.</small></div>
+      <textarea id="d-txt" class="editor" aria-label="Texto da nota">${esc(S.doc.content)}</textarea>
+      <div class="row end" style="margin-top:10px"><button class="btn" id="d-cancelar">Cancelar</button><button class="btn primary" id="d-salvar">Salvar</button></div>`;
   } else if (S.doc) {
     painel = `<div class="row noprint" style="justify-content:space-between;margin-bottom:8px"><code>${esc(S.doc.path)}</code>
-      ${S.doc.frozen ? '<span class="tag">arquivo congelado: somente leitura</span>' : '<button class="btn" id="d-editar">Editar</button>'}</div><div class="md">${md(S.doc.content)}</div>`;
+      ${S.doc.frozen ? '<span class="tag">somente leitura</span>' : '<button class="btn" id="d-editar">Editar</button>'}</div><div class="md">${md(S.doc.content)}</div>`;
   }
   return {
-    html: `${sub}<section class="docs"><div class="card"><div class="row noprint" style="justify-content:space-between"><h2>Arquivos</h2><button class="btn primary mini" id="d-novo">Nova nota</button></div>
-      <div class="doclist">${lista || '<p class="muted small">Nenhum .md em goals/, rules/, reports/ ou research/.</p>'}</div></div><div class="card">${painel}</div></section>`,
+    html: `${sub}<section class="docs"><div class="card"><h2>Notas</h2><div class="card-acao noprint"><button class="btn primary mini" id="d-novo">Nova nota</button></div><div class="sem-sub"></div>
+      <div class="doclist">${lista || '<p class="muted small">Nenhuma nota ainda.</p>'}</div></div><div class="card">${painel}</div></section>`,
     depois() {
       liga();
       document.querySelectorAll("[data-doc]").forEach((b) => (b.onclick = async () => {
         try { S.doc = await api("/api/doc?path=" + encodeURIComponent(b.dataset.doc)); S.editando = false; desenhar(); } catch (e) { toast(e.message, true); }
       }));
-      $("d-novo").onclick = () => { S.doc = { path: `research/${new Date().toISOString().slice(0, 10)}-nova-nota.md`, content: "# Título\n\n", novo: true }; S.editando = true; desenhar(); };
+      $("d-novo").onclick = () => { S.doc = { path: `research/${hojeISO()}-nova-nota.md`, content: "# Título\n\n", novo: true }; S.editando = true; desenhar(); };
       if ($("d-editar")) $("d-editar").onclick = () => { S.editando = true; desenhar(); };
       if ($("d-cancelar")) $("d-cancelar").onclick = () => { S.editando = false; if (S.doc.novo) S.doc = null; desenhar(); };
       if ($("d-salvar")) $("d-salvar").onclick = async () => {
         try {
           const r = await api("/api/doc", { method: "PUT", body: { path: $("d-path").value.trim(), content: $("d-txt").value } });
           S.doc = await api("/api/doc?path=" + encodeURIComponent(r.path)); S.editando = false; S.docs = null;
-          toast("Gravado em " + r.path); await carregar(true);
+          toast("Nota salva."); await carregar(true);
         } catch (e) { toast(e.message, true); }
       };
     },
   };
 }
 
-/* ---------------------------------------------------------------- configuracoes */
-async function abrirConfig() {
-  let c;
-  try { c = await api("/api/config"); } catch (e) { return toast(e.message, true); }
-  $("modal-in").innerHTML = `<h2 style="margin-top:0">Configurações: pasta de dados</h2>
-    <p class="muted small">O painel lê e grava nesta pasta. Caminho absoluto ou relativo à pasta do painel. Fica salvo em <code>config.local.json</code>, que não vai para o Git.</p>
-    <div class="field"><label for="c-dir">Pasta de dados</label><input id="c-dir" value="${esc(c.data_directory)}"></div>
-    <p class="small">Pasta em uso: <code>${esc(c.resolved)}</code><br>Tabelas encontradas: ${c.tables_found.length ? esc(c.tables_found.join(", ")) : "nenhuma"}<br>Planilha carteira.xlsx: ${c.workbook ? "encontrada" : "não encontrada"}<br>Modo somente acréscimo: ${c.append_only ? "ligado" : "desligado"}</p>
-    <div class="row end"><button class="btn" id="c-exemplo">Usar dados de exemplo</button><button class="btn" id="c-fechar">Fechar</button><button class="btn primary" id="c-salvar">Salvar e recarregar</button></div>`;
-  $("modal").classList.add("open");
-  const fechar = () => $("modal").classList.remove("open");
-  $("c-fechar").onclick = fechar;
-  $("c-exemplo").onclick = () => ($("c-dir").value = "sample_data");
-  $("c-salvar").onclick = async () => {
-    try { await api("/api/config", { method: "PUT", body: { data_directory: $("c-dir").value } }); fechar(); S.sim = null; S.aporte = null; S.doc = null; await carregar(); toast("Pasta de dados alterada."); } catch (e) { toast(e.message, true); }
-  };
+/* ---------------------------------------------------------------- primeiros passos (pasta vazia) */
+function vInicio() {
+  const passo = (n, titulo, texto, rotulo, acao, primario) => `<div class="passo"><span class="n">${n}</span><h3>${titulo}</h3><p>${texto}</p>${botao(rotulo, acao, primario)}</div>`;
+  return `<section class="inicio">
+      <h1>Vamos começar</h1>
+      <p class="lead">O Cashboard mostra o que você registrar aqui ou o que a sua IA organizar. Seus dados ficam só neste computador.</p>
+      <div class="passos">
+        ${passo(1, "Seus investimentos", "Adicione o que você tem hoje, um de cada vez.", "Adicionar investimento", "posicao", 1)}
+        ${passo(2, "Gastos e entradas", "Registre o salário e os gastos do mês.", "Registrar", "despesas")}
+        ${passo(3, "Suas metas", "Reserva de emergência e divisão da carteira.", "Definir metas", "metas")}
+      </div>
+      <div class="card ia-card"><div>${ic("ia")}</div><div><h3>Prefere não digitar?</h3><p>Mande seus extratos para uma IA (ChatGPT, Claude, Gemini ou outra) e ela preenche o painel para você.</p>
+        <div class="row">${botao("Conectar com IA", "ia")}${botao("Importar dados", "importar")}</div></div></div>
+      <p class="muted small">Quer só ver como fica? <button class="link" data-acao="exemplo">Abrir os dados de exemplo</button></p>
+    </section>`;
 }
 
 /* ---------------------------------------------------------------- desenho */
@@ -673,22 +700,20 @@ function desenhar() {
   aplicarAparencia();
   lerTema();
   $("b-priv").innerHTML = `${ic(S.priv ? "olhoFechado" : "olho")}<span class="lbl">${S.priv ? "Valores ocultos" : "Ocultar valores"}</span>`;
-  $("b-priv").title = S.priv ? "Mostrar os valores em reais" : "Ocultar os valores em reais e manter os percentuais";
+  $("b-priv").title = S.priv ? "Mostrar os valores em reais" : "Esconder os valores em reais (os percentuais continuam)";
   $("b-priv").setAttribute("aria-label", $("b-priv").title);
   $("b-priv").setAttribute("aria-pressed", S.priv);
   S.charts.forEach((c) => c.dispose()); S.charts = [];
+  if (!VIEWS[S.tab]) S.tab = "geral";
   $("tabs").innerHTML = TABS.map(([k, t, i]) => `<button role="tab" id="tab-${k}" aria-selected="${S.tab === k}" tabindex="${S.tab === k ? 0 : -1}" data-tab="${k}">${ic(i)}<span>${t}</span></button>`).join("");
   document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => irPara(b.dataset.tab)));
   const ativa = $("tab-" + S.tab);
   if (ativa) $("tabs").scrollLeft = Math.max(0, ativa.offsetLeft - ($("tabs").clientWidth - ativa.offsetWidth) / 2);
   conexao(true);
   $("foot").textContent = d.config.disclaimer || "";
-  if (d.vazio) {
-    $("view").innerHTML = card("Pasta de dados sem posições", "", `<p>${esc(d.faltando.join(" "))}</p><p class="muted">Abra Configurações e aponte para uma pasta com a estrutura esperada, ou use os dados de exemplo.</p>`);
-    return;
-  }
+  if (d.vazio && S.tab !== "gestao") { $("view").innerHTML = vInicio(); return; }
   d.alocacao.linhas.forEach((l) => cor(l.classe, "classe"));
-  const v = (VIEWS[S.tab] || vGeral)(d);
+  const v = VIEWS[S.tab](d);
   $("view").innerHTML = v.html;
   if (v.depois) v.depois();
 }
@@ -706,9 +731,10 @@ $("tabs").onkeydown = (e) => {
   irPara(TABS[j][0], true);
 };
 $("b-home").onclick = () => irPara("geral");
-$("b-sync").onclick = async () => { await carregar(true); if ($("sync").classList.contains("ok")) toast("Dados recarregados da pasta."); };
+$("b-sync").onclick = async () => { await carregar(true); if ($("sync").classList.contains("ok")) toast("Painel recarregado."); };
 const menu = (abrir) => { $("menu").hidden = !abrir; $("b-menu").setAttribute("aria-expanded", abrir); };
 $("b-menu").innerHTML = `${ic("engrenagem")}<span class="lbl">Opções</span>`;
+$("b-add").innerHTML = `${ic("mais")}<span>Adicionar</span>`;
 $("b-menu").onclick = (e) => { e.stopPropagation(); menu($("menu").hidden); if (!$("menu").hidden) $("menu").querySelector("[aria-checked=true]").focus(); };
 document.querySelectorAll(".skin").forEach((b) => (b.onclick = () => { ls("wd.skin", b.dataset.skin); desenhar(); }));
 document.querySelectorAll("[data-modo]").forEach((b) => (b.onclick = () => { ls("wd.modo", b.dataset.modo); desenhar(); }));
@@ -717,18 +743,39 @@ document.querySelectorAll("[data-ic]").forEach((el) => (el.outerHTML = ic(el.dat
 document.addEventListener("click", (e) => { if (!e.target.closest(".menu-wrap")) menu(false); });
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
+  esconderDica();
   if (!$("menu").hidden) { menu(false); $("b-menu").focus(); }
   $("drawer").classList.remove("open"); $("modal").classList.remove("open");
 });
 $("menu").onclick = (e) => { if (e.target.closest(".opt-item")) menu(false); };
 let rolou = false;
-window.addEventListener("scroll", () => { const r = window.scrollY > 4; if (r !== rolou) { rolou = r; $("top").classList.toggle("rolou", r); } }, { passive: true });
+window.addEventListener("scroll", () => { esconderDica(); const r = window.scrollY > 4; if (r !== rolou) { rolou = r; $("top").classList.toggle("rolou", r); } }, { passive: true });
 $("b-priv").onclick = () => { S.priv = !S.priv; ls("wd.priv", S.priv ? "1" : "0"); desenhar(); };
 $("b-xlsx").onclick = () => (window.location.href = "/api/export.xlsx");
 $("b-print").onclick = () => window.print();
-$("b-cfg").onclick = abrirConfig;
 $("drawer").onclick = (e) => { if (e.target.id === "drawer") $("drawer").classList.remove("open"); };
 $("modal").onclick = (e) => { if (e.target.id === "modal") $("modal").classList.remove("open"); };
+
+/* Explicacao do "?": um balao so, posicionado perto do botao e preso dentro da tela. */
+function mostrarDica(b) {
+  const el = $("dica"), r = b.getBoundingClientRect();
+  el.textContent = b.dataset.q; el.hidden = false;
+  const w = el.offsetWidth, h = el.offsetHeight;
+  el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + "px";
+  el.style.top = (r.bottom + h + 12 > window.innerHeight ? r.top - h - 8 : r.bottom + 8) + "px";
+  mostrarDica.de = b;
+}
+function esconderDica() { $("dica").hidden = true; mostrarDica.de = null; }
+document.addEventListener("mouseover", (e) => { const b = e.target.closest && e.target.closest(".q"); if (b) mostrarDica(b); else if (mostrarDica.de && !mostrarDica.fixa) esconderDica(); });
+document.addEventListener("focusin", (e) => { const b = e.target.closest && e.target.closest(".q"); if (b) mostrarDica(b); else esconderDica(); });
+/* Um clique em qualquer lugar: fixa ou solta o "?", e dispara os botoes com data-acao. */
+document.addEventListener("click", (e) => {
+  const q = e.target.closest(".q");
+  if (q) { e.preventDefault(); mostrarDica.fixa = mostrarDica.de === q && mostrarDica.fixa ? false : true; if (mostrarDica.fixa) mostrarDica(q); else esconderDica(); return; }
+  mostrarDica.fixa = false; esconderDica();
+  const b = e.target.closest("[data-acao]");
+  if (b && ACOES[b.dataset.acao]) { e.preventDefault(); menu(false); ACOES[b.dataset.acao](b); }
+});
 
 carregar();
 setInterval(vigiar, 4000);

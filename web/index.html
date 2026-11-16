@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard Financeiro</title>
+<title>Cashboard</title>
 <script>
   /* Tema e modo antes do primeiro desenho, para a tela nao piscar. */
   (function () {
@@ -30,13 +30,14 @@
 <a class="skip" href="#view">Pular para o conteúdo</a>
 <header class="top" id="top">
   <div class="top-in">
-    <button class="brand" id="b-home" title="Ir para a visão geral">
+    <button class="brand" id="b-home" title="Ir para o resumo">
       <span class="mark" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 13V9M8 13V4M13 13V7"/></svg></span>
-      <span class="word">Dashboard Financeiro</span>
+      <span class="word">Cashboard</span>
     </button>
     <nav id="tabs" role="tablist" aria-label="Seções do painel"></nav>
     <div class="tools">
-      <button id="b-sync" class="status" title="Sincronizado com a pasta de dados. Clique para recarregar agora."><span id="sync" class="sync"></span><span id="sub">Carregando</span></button>
+      <button id="b-sync" class="status" title="O painel acompanha a sua pasta de dados. Clique para recarregar agora."><span id="sync" class="sync"></span><span id="sub">Carregando</span></button>
+      <button id="b-add" class="add" data-acao="adicionar" title="Registrar um gasto, um investimento e mais"></button>
       <button id="b-priv" class="tool" aria-pressed="false"></button>
       <div class="menu-wrap">
         <button id="b-menu" class="tool" aria-haspopup="dialog" aria-expanded="false" aria-controls="menu" title="Opções" aria-label="Opções"></button>
@@ -58,10 +59,15 @@
             </div>
           </div>
           <div class="opt-sec">
+            <div class="opt-tit">Preencher com IA</div>
+            <button class="opt-item" data-acao="ia"><span data-ic="ia"></span>Conectar com IA</button>
+            <button class="opt-item" data-acao="importar"><span data-ic="colar"></span>Importar dados</button>
+          </div>
+          <div class="opt-sec">
             <div class="opt-tit">Dados</div>
-            <button class="opt-item" id="b-xlsx"><span data-ic="baixar"></span>Exportar planilha (.xlsx)</button>
+            <button class="opt-item" id="b-xlsx"><span data-ic="baixar"></span>Baixar planilha (.xlsx)</button>
             <button class="opt-item" id="b-print"><span data-ic="imprimir"></span>Imprimir ou salvar em PDF</button>
-            <button class="opt-item" id="b-cfg"><span data-ic="pasta"></span>Pasta de dados</button>
+            <button class="opt-item" data-acao="pasta"><span data-ic="pasta"></span>Pasta de dados</button>
           </div>
         </div>
       </div>
@@ -74,8 +80,10 @@
 <aside id="drawer" class="drawer" aria-hidden="true"><div class="drawer-in" id="drawer-in"></div></aside>
 <div id="modal" class="modal" aria-hidden="true"><div class="modal-in" id="modal-in"></div></div>
 <div id="toast" class="toast" role="status"></div>
+<div id="dica" class="dica" role="tooltip" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js" defer></script>
 <script src="app.js" defer></script>
+<script src="forms.js" defer></script>
 </body>
 </html>

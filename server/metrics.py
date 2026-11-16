@@ -2,18 +2,19 @@
 """
 metrics.py - calcula tudo o que o painel mostra a partir das tabelas lidas.
 
-Nada aqui estima numero que nao esta nos arquivos. Quando falta dado (custo de aquisicao, por
-exemplo), o campo sai como None e o motivo entra em "faltando".
+Nada aqui estima numero que nao esta nos arquivos. Quando falta dado (valor investido, por
+exemplo), o campo sai como None e entra em "pendencias", com o que a pessoa pode fazer.
 
 Formulas:
   base da alocacao       = soma de valor_brl dos blocos de "allocation_blocks"
-  patrimonio total       = soma de valor_brl do snapshot mais recente
-  resultado sobre custo  = valor_brl - quantidade x preco_medio
-  rendimento observado   = valor no snapshot mais recente - valor no primeiro snapshot em que o
-                           mesmo titulo aparece (titulo com vencimento, sem custo no arquivo)
-  resultado realizado    = valor da venda - quantidade vendida x custo medio das compras registradas
-  taxa de poupanca       = (renda - gastos) / renda
-  falta para o alvo      = alvo x (base - caixa destinado a reserva) - valor da classe
+  patrimonio total       = soma de valor_brl da atualizacao (snapshot) mais recente
+  lucro ate agora        = valor_brl - quantidade x preco_medio
+  rendimento observado   = valor na atualizacao mais recente - valor na primeira atualizacao em
+                           que o mesmo titulo aparece (titulo com vencimento, sem custo no arquivo)
+  lucro de vendas        = valor da venda - quantidade vendida x custo medio das compras registradas
+  quanto guardei         = (renda - gastos) / renda
+  falta para a meta      = meta x (base - caixa destinado a reserva) - valor da classe
+  meses de reserva       = reserva / media de gastos dos ultimos 3 meses fechados
 """
 import unicodedata
 from datetime import date
@@ -76,11 +77,12 @@ def _custo(r):
 
 
 def _param(params, *termos):
+    """Primeiro parametro cujo nome contem todos os termos. Devolve (valor, origem)."""
     for nome, p in params.items():
         n = _ascii(nome)
         if all(t in n for t in termos):
-            return p["valor"]
-    return None
+            return p["valor"], p.get("origem")
+    return None, None
 
 
 def _chave_titulo(r):
@@ -88,6 +90,8 @@ def _chave_titulo(r):
 
 
 def _posicoes(pos, snaps, cfg):
+    if not snaps:
+        return []
     atual = [r for r in pos if r["data_snapshot"] == snaps[-1]]
     palavras = [_ascii(p) for p in cfg["flag_words"]]
     saida = []
@@ -144,7 +148,7 @@ def _custo_da_posicao(pos, ticker, data_venda, qtd):
 
 
 def _realizado(trans, pos):
-    """Resultado das vendas. Custo: 1) custo medio das compras de transacoes.csv, na ordem das
+    """Lucro das vendas. Custo: 1) custo medio das compras de transacoes.csv, na ordem das
     datas; 2) na falta delas, o preco medio registrado em posicoes.csv. Sem nenhum dos dois, a
     venda fica em sem_custo e nao entra no total."""
     carteira, itens, sem_custo, ir = {}, [], [], 0.0
@@ -181,7 +185,8 @@ def _alocacao(posicoes, alvos_rows, b, para_reserva, cfg, hoje):
     validos = [a for a in alvos_rows if a.get("vigencia_inicio", "") <= hoje.isoformat()] or alvos_rows
     versao, vigencia, alvos = None, None, {}
     if validos:
-        ultimo = max(validos, key=lambda a: a.get("vigencia_inicio", ""))
+        # ordenacao estavel: entre versoes com a mesma data, vale a que foi gravada por ultimo
+        ultimo = sorted(validos, key=lambda a: a.get("vigencia_inicio", ""))[-1]
         versao, vigencia = ultimo["versao_politica"], ultimo["vigencia_inicio"]
         for a in validos:
             if a["versao_politica"] == versao:
@@ -284,24 +289,32 @@ def _ultimos(indicadores, cfg):
             for k in cfg["benchmarks"] if k in ult]
 
 
+def _gasto_medio(gastos, hoje):
+    """Media de gastos dos ultimos 3 meses ja fechados (o mes em andamento fica de fora)."""
+    fechados = [g for g in gastos if g["mes"] < hoje.isoformat()[:7] and g["gastos"] > 0][-3:]
+    if not fechados:
+        return None, 0
+    return sum(g["gastos"] for g in fechados) / len(fechados), len(fechados)
+
+
+def _plural(n, um, varios):
+    return f"{n} {um if n == 1 else varios}"
+
+
 def build(tables, params, cfg, hoje=None):
     hoje = hoje or date.today()
     pos = [r for r in tables["posicoes"] if r.get("data_snapshot")]
     snaps = sorted({r["data_snapshot"] for r in pos})
-    faltando = []
-    if not snaps:
-        return {"vazio": True, "faltando": ["Nenhuma posição em data/investments/posicoes.csv."],
-                "config": _cfg_publico(cfg), "parametros": params}
+    # pendencias: o que falta para o painel ficar completo, em linguagem simples e com a acao
+    # que resolve (a tela transforma "acao" em botao).
+    pend = []
 
     posicoes = _posicoes(pos, snaps, cfg)
-    b = _blocos([r for r in pos if r["data_snapshot"] == snaps[-1]], cfg)
+    b = _blocos([r for r in pos if r["data_snapshot"] == snaps[-1]] if snaps else [], cfg)
 
-    meta_reserva = _param(params, "META", "RESERVA")
-    aporte_mensal = _param(params, "APORTE", "MENSAL")
+    meta_reserva, origem_reserva = _param(params, "META", "RESERVA")
+    aporte_mensal, origem_aporte = _param(params, "APORTE", "MENSAL")
     para_reserva = min(b["caixa"], max(0.0, meta_reserva - b["reserva"])) if meta_reserva else 0.0
-    if meta_reserva is None:
-        faltando.append("Meta da reserva: sem parâmetro 'Meta da reserva' na aba Config da planilha "
-                        "nem em 'parameters' do config.")
 
     # Resultado por tipo de produto
     por_tipo = {}
@@ -323,19 +336,10 @@ def build(tables, params, cfg, hoje=None):
     por_tipo = sorted(por_tipo.values(), key=lambda t: -t["valor"])
     sem_resultado = [p["ativo"] for p in posicoes
                      if p["metodo"] is None and p["tipo"] != "Conta" and p["valor"]]
-    if sem_resultado:
-        faltando.append("Sem lucro calculado por falta de custo de aquisição no arquivo: "
-                        + "; ".join(sem_resultado) + ". Como resolver: informar quantidade e preço "
-                        "médio na linha da posição em posicoes.csv.")
     desde = sorted({p["desde"] for p in posicoes if p["desde"]})
+    alertas = sum(1 for p in posicoes if p["alerta"])
 
     realizado = _realizado(tables["transacoes"], pos)
-    if realizado["sem_custo"]:
-        faltando.append("Vendas sem resultado calculado, por falta de custo (nem compra em "
-                        "transacoes.csv, nem preço médio em posicoes.csv): "
-                        + "; ".join(f"{x['ativo']} em {_data_br(x['data'])}"
-                                    for x in realizado["sem_custo"])
-                        + ". Como resolver: lançar a compra em transacoes.csv.")
 
     evolucao = []
     for s in snaps:
@@ -346,10 +350,30 @@ def build(tables, params, cfg, hoje=None):
         evolucao.append(e)
 
     gastos = _gastos(tables["despesas"], cfg)
+    gasto_medio, n_media = _gasto_medio(gastos, hoje)
     hist_aportes, ordem = _aportes(tables["aportes"])
     alocacao = _alocacao(posicoes, tables["alvos"], b, para_reserva, cfg, hoje)
-    if not alocacao["versao"]:
-        faltando.append("Sem metas de alocação em data/investments/alvos.csv.")
+
+    if posicoes:
+        if meta_reserva is None:
+            pend.append({"texto": "Defina a meta da sua reserva de emergência para acompanhar o "
+                                  "quanto falta.", "acao": "metas", "botao": "Definir metas"})
+        if not alocacao["versao"]:
+            pend.append({"texto": "Defina como quer dividir seus investimentos para comparar a "
+                                  "carteira com a meta.", "acao": "metas", "botao": "Definir metas"})
+        if sem_resultado:
+            pend.append({"texto": "Sem o valor investido, o painel não calcula o lucro de: "
+                                  + "; ".join(sem_resultado) + ".",
+                         "acao": "atualizar", "botao": "Informar valores"})
+        if alertas:
+            pend.append({"texto": _plural(alertas, "investimento está", "investimentos estão")
+                                  + " com valor estimado. Atualize com o extrato mais recente.",
+                         "acao": "atualizar", "botao": "Atualizar valores"})
+    if realizado["sem_custo"]:
+        pend.append({"texto": "Falta registrar a compra para calcular o lucro da venda de "
+                              + "; ".join(f"{x['ativo']} em {_data_br(x['data'])}"
+                                          for x in realizado["sem_custo"]) + ".",
+                     "acao": "transacoes", "botao": "Registrar compra"})
 
     eventos = sorted((v for v in tables["vencimentos"]
                       if v.get("data", "") >= hoje.isoformat()
@@ -362,21 +386,26 @@ def build(tables, params, cfg, hoje=None):
 
     ult12 = gastos[-12:]
     return {
-        "vazio": False,
-        "snapshot": snaps[-1], "hoje": hoje.isoformat(),
+        # vazio: pasta nova, sem nada. A tela mostra os primeiros passos.
+        "vazio": not any(tables[n] for n in tables),
+        "tem": {"posicoes": bool(posicoes), "gastos": bool(gastos), "metas": bool(alocacao["versao"])},
+        "snapshot": snaps[-1] if snaps else None, "hoje": hoje.isoformat(),
         "blocos": b,
         "posicoes": posicoes,
-        "alertas_posicao": sum(1 for p in posicoes if p["alerta"]),
+        "alertas_posicao": alertas,
         "resultado": {
             "sobre_custo": sum(p["resultado"] for p in posicoes if p["metodo"] == "custo"),
             "custo_total": sum(p["custo"] for p in posicoes if p["metodo"] == "custo"),
             "observado": sum(p["resultado"] for p in posicoes if p["metodo"] == "observado"),
             "observado_desde": desde[0] if desde else None,
+            "n_sem_custo": len(sem_resultado),
             "por_tipo": por_tipo, "realizado": realizado,
         },
         "alocacao": alocacao,
-        "reserva": {"atual": b["reserva"], "meta": meta_reserva, "para_reserva": para_reserva},
-        "aporte_mensal": aporte_mensal,
+        "reserva": {"atual": b["reserva"], "meta": meta_reserva, "para_reserva": para_reserva,
+                    "origem": origem_reserva, "gasto_medio": gasto_medio, "n_meses_media": n_media,
+                    "meses": b["reserva"] / gasto_medio if gasto_medio else None},
+        "aporte_mensal": aporte_mensal, "aporte_origem": origem_aporte,
         "evolucao": evolucao,
         "gastos": gastos,
         "passiva": {"meses": [{"mes": g["mes"], "valor": g["passiva"]} for g in gastos],
@@ -385,7 +414,7 @@ def build(tables, params, cfg, hoje=None):
         "eventos": eventos, "escada": escada,
         "indicadores": _ultimos(tables["indicadores"], cfg),
         "parametros": params,
-        "faltando": faltando,
+        "pendencias": pend,
         "config": _cfg_publico(cfg),
     }
 
@@ -393,4 +422,5 @@ def build(tables, params, cfg, hoje=None):
 def _cfg_publico(cfg):
     return {"append_only": bool(cfg.get("append_only")), "simulator": cfg.get("simulator"),
             "disclaimer": cfg.get("disclaimer"), "allocation_blocks": cfg["allocation_blocks"],
-            "cash_class": cfg["cash_class"], "reserve_block": cfg["reserve_block"]}
+            "cash_class": cfg["cash_class"], "reserve_block": cfg["reserve_block"],
+            "income_categories": cfg["income_categories"]}

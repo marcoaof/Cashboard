@@ -27,3 +27,6 @@ __pycache__/
 
 # Ferramentas locais
 .claude/
+
+# Pasta criada por "Comecar com meus dados"
+/meus_dados/
