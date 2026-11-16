@@ -41,6 +41,16 @@ code { font-family: var(--font-code); font-size: .88em; }
 ::selection { background: var(--accent-soft); }
 [hidden] { display: none !important; }
 
+/* barra de rolagem: fina, sem setas, na cor do tema (vale para a pagina, janelas, tabelas e caixas de texto) */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background-color: var(--line-2); border: 3px solid transparent; border-radius: 99px; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { background-color: var(--muted); }
+::-webkit-scrollbar-button { display: none; }
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+}
+
 /* ---------------------------------------------------------------- topo */
 .skip { position: absolute; left: -9999px; top: 8px; background: var(--accent); color: var(--accent-ink); padding: 6px 12px; border-radius: 6px; z-index: 70; }
 .skip:focus { left: 12px; }
