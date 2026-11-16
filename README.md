@@ -1,4 +1,4 @@
-# WealthDashboard
+# Dashboard Financeiro
 
 Painel local de patrimônio, investimentos e gastos. Roda no seu computador (Windows), lê e grava
 arquivos CSV e Markdown de uma pasta de dados que você escolhe, e nunca envia nada para fora.
@@ -18,7 +18,8 @@ do Git.
 | Gestão | Inclusão, edição e exclusão de linhas nas tabelas; leitura e edição de notas e relatórios em Markdown |
 
 Controles no topo: filtros por classe e por tipo de produto, modo privacidade (oculta valores em
-reais e mantém percentuais), exportação em `.xlsx`, impressão e a pasta de dados.
+reais e mantém percentuais), tema claro ou escuro (segue o sistema até você escolher), exportação em
+`.xlsx`, impressão e a pasta de dados.
 
 ## Instalar e rodar (Windows)
 
@@ -39,8 +40,13 @@ py -3 -m venv .venv
 
 Outra porta: defina `WD_PORT` antes de rodar o `.bat` (`set WD_PORT=8080`).
 
-Os gráficos usam a biblioteca ECharts, carregada de `cdn.jsdelivr.net`. Sem internet, as tabelas e os
-números continuam funcionando e os gráficos ficam indisponíveis.
+Os gráficos usam a biblioteca ECharts, carregada de `cdn.jsdelivr.net`, e as fontes (Fraunces, IBM Plex
+Sans e IBM Plex Mono) vêm do Google Fonts. Sem internet, as tabelas e os números continuam funcionando
+com as fontes do sistema, e os gráficos ficam indisponíveis.
+
+Cores e fontes ficam em variáveis no topo de `web/styles.css`, uma lista para o tema claro e outra para
+o escuro. As seis cores de série dos gráficos foram testadas quanto a contraste e daltonismo: ao
+trocar, mantenha a ordem.
 
 ## Configurar a pasta de dados
 
@@ -52,7 +58,7 @@ Pela tela: botão **Configurações**, informe o caminho e salve. Pelo arquivo: 
 }
 ```
 
-Caminho absoluto ou relativo à pasta do WealthDashboard. `config.local.json` está no `.gitignore`; o
+Caminho absoluto ou relativo à pasta do projeto. `config.local.json` está no `.gitignore`; o
 que vale para todos fica em `config.example.json`. Chaves aceitas:
 
 | Chave | Para que serve | Padrão |

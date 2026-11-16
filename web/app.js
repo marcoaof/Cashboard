@@ -1,10 +1,16 @@
-/* WealthDashboard - frontend. Sem framework: estado em S, uma funcao de desenho por aba. */
+/* Dashboard Financeiro - frontend. Sem framework: estado em S, uma funcao de desenho por aba. */
 "use strict";
 
 const TABS = [["geral", "Visão geral"], ["alocacao", "Alocação"], ["resultado", "Lucros"],
   ["gastos", "Gastos"], ["evolucao", "Evolução e simulador"], ["gestao", "Gestão"]];
-const SERIES = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767"];
-const INK = "#f0efec", INK2 = "#c3c2b7", MUTED = "#898781", GRID = "#2c2c2a", SURFACE = "#1a1a19";
+/* Cores e fontes vem do CSS (styles.css), para os graficos acompanharem o tema claro ou escuro. */
+let SERIES = [], INK, INK2, MUTED, GRID, SURFACE, SURFACE2, FONTE;
+function lerTema() {
+  const css = getComputedStyle(document.documentElement), v = (n) => css.getPropertyValue(n).trim();
+  SERIES = [1, 2, 3, 4, 5, 6].map((i) => v("--s" + i));
+  INK = v("--ink"); INK2 = v("--ink-2"); MUTED = v("--muted"); GRID = v("--line");
+  SURFACE = v("--surface"); SURFACE2 = v("--surface-2"); FONTE = v("--font-ui");
+}
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } };
 
 const S = {
@@ -73,12 +79,9 @@ async function vigiar() {
 /* ---------------------------------------------------------------- graficos */
 const corDe = {};
 function cor(nome, grupo) {
-  const k = grupo + "|" + nome;
-  if (!corDe[k]) {
-    const n = Object.keys(corDe).filter((x) => x.startsWith(grupo + "|")).length;
-    corDe[k] = n < SERIES.length ? SERIES[n] : MUTED;
-  }
-  return corDe[k];
+  const k = grupo + "|" + nome;   // guarda a posicao na paleta, nao a cor: a cor muda com o tema
+  if (corDe[k] === undefined) corDe[k] = Object.keys(corDe).filter((x) => x.startsWith(grupo + "|")).length;
+  return corDe[k] < SERIES.length ? SERIES[corDe[k]] : MUTED;
 }
 function chart(id, option) {
   const el = $(id);
@@ -87,9 +90,9 @@ function chart(id, option) {
   const c = echarts.init(el, null, { renderer: "svg" });
   const eixo = { axisLine: { lineStyle: { color: GRID } }, axisTick: { show: false }, axisLabel: { color: MUTED }, splitLine: { lineStyle: { color: GRID } } };
   const base = {
-    backgroundColor: "transparent", color: SERIES, textStyle: { color: INK2, fontFamily: "Segoe UI, system-ui, sans-serif" },
-    grid: { left: 8, right: 16, top: option.legend ? 36 : 14, bottom: 6, containLabel: true },
-    tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, backgroundColor: "#232321", borderColor: GRID, textStyle: { color: INK }, valueFormatter: (v) => brl(v) },
+    backgroundColor: "transparent", color: SERIES, textStyle: { color: INK2, fontFamily: FONTE },
+    grid: { left: 4, right: 16, top: option.legend ? 38 : 14, bottom: 4, containLabel: true },
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: GRID, opacity: .35 } }, backgroundColor: SURFACE2, borderColor: GRID, textStyle: { color: INK, fontFamily: FONTE }, valueFormatter: (v) => brl(v) },
   };
   if (option.legend) option.legend = { top: 0, left: 0, textStyle: { color: INK2 }, icon: "roundRect", itemWidth: 10, itemHeight: 10, ...option.legend };
   for (const k of ["xAxis", "yAxis"]) if (option[k]) option[k] = { ...eixo, ...option[k], axisLabel: { ...eixo.axisLabel, ...(option[k].axisLabel || {}) } };
@@ -98,10 +101,10 @@ function chart(id, option) {
 }
 window.addEventListener("resize", () => S.charts.forEach((c) => c.resize()));
 const eixoBRL = { type: "value", axisLabel: { formatter: (v) => brlAbbr(v) } };
-const barra = (extra) => ({ type: "bar", barMaxWidth: 26, itemStyle: { borderRadius: [4, 4, 0, 0], borderColor: SURFACE, borderWidth: 1 }, ...extra });
+const barra = (extra) => ({ type: "bar", barMaxWidth: 24, itemStyle: { borderRadius: [3, 3, 0, 0], borderColor: SURFACE, borderWidth: 1 }, ...extra });
 
 /* ---------------------------------------------------------------- pecas */
-const kpi = (rotulo, valor, sub, cls = "") => `<div class="card kpi"><span>${rotulo}</span><b class="${cls}">${valor}</b><small>${sub || ""}</small></div>`;
+const kpi = (rotulo, valor, sub, cls = "") => `<div class="kpi"><span>${rotulo}</span><b class="${cls}">${valor}</b><small>${sub || ""}</small></div>`;
 const card = (titulo, sub, corpo, cls = "") => `<div class="card ${cls}"><h2>${titulo}</h2><p class="sub">${sub || ""}</p>${corpo}</div>`;
 function tabela(cab, linhas, pe) {
   const th = cab.map((c) => `<th class="${c.n ? "n" : ""}">${c.t}</th>`).join("");
@@ -116,11 +119,18 @@ const metodo = (p) => p.metodo === "custo" ? "sobre o custo" : p.metodo === "obs
 function vGeral(d) {
   const b = d.blocos, r = d.resultado, ev = d.evolucao, ant = ev.length > 1 ? ev[ev.length - 2] : null;
   const g = d.gastos[d.gastos.length - 1];
-  const delta = ant ? `${comSinal(b.total - ant.total)} desde ${dt(ant.data)}` : "primeira posição registrada";
+  const delta = ant ? `<span class="${sinal(b.total - ant.total)}">${comSinal(b.total - ant.total)}</span> desde a posição de ${dt(ant.data)}` : "Primeira posição registrada";
   const res = d.reserva;
+  // Faixa de composicao: mesmas partes e mesmas cores do grafico de evolucao.
+  const partes = PARTES.map(([nome, k], i) => ({ nome, v: b[k], cor: SERIES[i] })).filter((p) => p.v > 0);
+  const hero = `<section class="hero">
+      <div><span class="eyebrow">Patrimônio total · posição de ${dt(d.snapshot)}</span>
+        <div class="hero-num">${brl(b.total)}</div><p class="hero-sub">${delta}</p></div>
+      <div><div class="strip" role="img" aria-label="Composição do patrimônio por bloco">${partes.map((p) => `<i style="flex:${p.v};background:${p.cor}" title="${p.nome}: ${pct(p.v / b.total, 1)}"></i>`).join("")}</div>
+        <ul class="legend">${partes.map((p) => `<li><span class="dot" style="background:${p.cor};margin:0"></span><span class="nome">${p.nome}</span><span class="v">${brl(p.v)}</span><span class="p">${pct(p.v / b.total, 1)}</span></li>`).join("")}</ul></div>
+    </section>`;
   const kp = [
-    kpi("Patrimônio total", brl(b.total), `Posição de ${dt(d.snapshot)}. ${delta}`),
-    kpi("Carteira de investimento", brl(b.base), `Investido ${brl(b.investido)} · caixa ${brl(b.caixa)} (${pct(b.base ? b.caixa / b.base : 0)})`),
+    kpi("Carteira de investimento", brl(b.base), `Base da alocação. Caixa ainda não investido: ${pct(b.base ? b.caixa / b.base : 0)}`),
     kpi("Lucro não realizado", comSinal(r.sobre_custo), r.custo_total ? `${pct(r.sobre_custo / r.custo_total)} sobre custo de ${brl(r.custo_total)}` : "Nenhuma posição com custo no arquivo", sinal(r.sobre_custo)),
     kpi("Rendimento observado", comSinal(r.observado), r.observado_desde ? `Títulos sem custo no arquivo, desde ${dt(r.observado_desde)}` : "Sem títulos nessa condição", sinal(r.observado)),
     kpi("Renda passiva", brl(d.passiva.total_12m), `Recebida nos últimos ${d.passiva.n_meses} meses com lançamento`),
@@ -138,24 +148,26 @@ function vGeral(d) {
   const ordem = d.ordem ? tabela([{ t: "Classe" }, { t: "Instrumento" }, { t: "Valor", n: 1 }], d.ordem.itens.map((i) => [esc(i.classe), esc(i.instrumento), brl(i.valor)]), ["Total", "", brl(d.ordem.total)])
     + `<p class="muted small">Fonte: ${esc(d.ordem.fonte)}</p>` : '<p class="muted">Nenhum aporte planejado em aportes.csv.</p>';
   const eventos = tabela([{ t: "Data" }, { t: "Evento" }, { t: "Valor", n: 1 }, { t: "Ação" }],
-    d.eventos.slice(0, 8).map((e) => [dt(e.data), `${esc(e.evento)}: ${esc(e.ativo)}`, e.valor ? brl(e.valor) : "", esc(e.acao)]));
-  const ind = tabela([{ t: "Indicador" }, { t: "Valor", n: 1 }, { t: "Data" }, { t: "Fonte" }],
-    d.indicadores.map((i) => [esc(i.indicador), `${i.valor == null ? "n/d" : i.valor.toLocaleString("pt-BR")} ${esc(i.unidade)}`, dt(i.data), `<span class="muted small">${esc(i.fonte)}</span>`]));
+    d.eventos.slice(0, 6).map((e) => [`<span class="num">${dt(e.data)}</span>`, `${esc(e.ativo)} <span class="tag">${esc(e.evento)}</span>`, e.valor ? brl(e.valor) : "", `<span class="small muted">${esc(e.acao)}</span>`]));
+  const ind = tabela([{ t: "Indicador" }, { t: "Valor", n: 1 }, { t: "Data", n: 1 }],
+    d.indicadores.map((i) => [`<span title="Fonte: ${esc(i.fonte)}">${esc(NOMES_IND[i.indicador] || i.indicador)}</span>`, `${i.valor == null ? "n/d" : i.valor.toLocaleString("pt-BR")} ${esc(i.unidade)}`, dt(i.data)]));
   return {
-    html: `${banner}<section class="grid kpis">${kp}</section>
+    html: `${banner}${hero}<section class="kpis">${kp}</section>
       <section class="grid cols">
         ${card("Evolução do patrimônio", "Uma barra por posição registrada (snapshot), dividida por bloco.", '<div id="c-evo" class="chart"></div>')}
         ${card("Patrimônio por tipo de produto", "Valor de cada tipo na posição atual.", '<div id="c-tipo" class="chart"></div>')}
         ${card("Lucros por tipo de produto", "Sobre custo: valor menos quantidade vezes preço médio. Observado: variação desde a primeira posição do título.", tipos)}
         ${card(d.ordem ? `Ordem planejada de ${mes(d.ordem.mes)}` : "Ordem do mês", "Último plano registrado em aportes.csv. Planejado não é executado.", ordem)}
         ${card("Próximos eventos", "Vencimentos e datas em aberto, de hoje em diante.", eventos)}
-        ${card("Indicadores de referência", "Último valor registrado em indicadores.csv. Períodos diferentes do da carteira: não compare direto.", ind)}
+        ${card("Indicadores de referência", "Último valor registrado em indicadores.csv (passe o mouse no nome para ver a fonte). Períodos diferentes do da carteira: não compare direto.", ind)}
       </section>`,
     depois() { gEvolucao("c-evo", d); gTipos("c-tipo", d); },
   };
 }
+const NOMES_IND = { cdi: "CDI", selic_meta: "Selic meta", selic_over: "Selic over", ipca_12m: "IPCA em 12 meses", ibovespa: "Ibovespa", ptax_dolar_venda: "Dólar (PTAX venda)" };
+const PARTES = [["Investido", "investido"], ["Caixa", "caixa"], ["Reserva", "reserva"], ["Fora da carteira", "fora"]];
 function gEvolucao(id, d) {
-  const partes = [["Investido", "investido"], ["Caixa", "caixa"], ["Reserva", "reserva"], ["Fora da carteira", "fora"]];
+  const partes = PARTES;
   chart(id, {
     legend: {}, xAxis: { type: "category", data: d.evolucao.map((e) => dt(e.data).slice(0, 5)) }, yAxis: eixoBRL,
     series: partes.map(([nome, k], i) => barra({ name: nome, stack: "t", data: d.evolucao.map((e) => +e[k].toFixed(2)), itemStyle: { color: SERIES[i], borderColor: SURFACE, borderWidth: 1 } })),
@@ -228,14 +240,14 @@ function vResultado(d) {
     ["Total", "", "", "", "", comSinal(real.total)]);
   const semCusto = real.sem_custo.length ? `<p class="small muted">Vendas sem compra registrada (resultado não calculado): ${real.sem_custo.map((s) => `${esc(s.ativo)} em ${dt(s.data)}, ${brl(s.venda)}`).join("; ")}.</p>` : "";
   return {
-    html: `<section class="grid kpis">
+    html: `<section class="kpis">
         ${kpi("Lucro não realizado sobre custo", comSinal(r.sobre_custo), r.custo_total ? `${pct(r.sobre_custo / r.custo_total)} sobre ${brl(r.custo_total)}` : "", sinal(r.sobre_custo))}
         ${kpi("Rendimento observado", comSinal(r.observado), r.observado_desde ? `desde ${dt(r.observado_desde)}; não é o lucro desde a aplicação` : "", sinal(r.observado))}
         ${kpi("Resultado realizado", comSinal(real.total), `${real.itens.length} venda(s) com custo · ${real.sem_custo.length} sem custo`, sinal(real.total))}
         ${kpi("IR retido registrado", brl(real.ir_pago), "Soma de ir_brl em transacoes.csv")}
       </section>
       <section class="grid cols">
-        ${card("Resultado por posição", "Só posições com resultado calculável. Azul: ganho. Laranja: perda.", `<div id="c-res" class="chart" style="height:${Math.max(220, com.length * 34 + 40)}px"></div>`)}
+        ${card("Resultado por posição", "Só posições com resultado calculável. Verde: ganho. Terracota: perda.", `<div id="c-res" class="chart" style="height:${Math.max(220, com.length * 34 + 40)}px"></div>`)}
         ${card("Resultado por tipo de produto", "Soma das posições de cada tipo. Os dois métodos não se somam: medem períodos diferentes.",
           tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Custo", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "%", n: 1 }, { t: "Rendimento observado", n: 1 }],
             r.por_tipo.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? brl(t.custo) : "", t.n_custo ? `<span class="${sinal(t.sobre_custo)}">${comSinal(t.sobre_custo)}</span>` : '<span class="muted">n/d</span>',
@@ -249,7 +261,7 @@ function vResultado(d) {
       chart("c-res", {
         grid: { right: 24 }, xAxis: eixoBRL, yAxis: { type: "category", data: com.map((p) => p.ticker || p.ativo.slice(0, 26)), axisLabel: { color: INK2 } },
         tooltip: { formatter: (a) => { const p = com[a[0].dataIndex]; return `${esc(p.ativo)}<br><b>${comSinal(p.resultado)}</b> (${pct(p.resultado_pct)})<br>${metodo(p)}`; } },
-        series: [barra({ data: com.map((p) => ({ value: +p.resultado.toFixed(2), itemStyle: { color: p.resultado >= 0 ? SERIES[0] : SERIES[1], borderRadius: p.resultado >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } })) })],
+        series: [barra({ data: com.map((p) => ({ value: +p.resultado.toFixed(2), itemStyle: { color: p.resultado >= 0 ? SERIES[0] : SERIES[3], borderRadius: p.resultado >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } })) })],
       });
     },
   };
@@ -267,7 +279,7 @@ function vGastos(d) {
     html: `<div class="row noprint" style="margin-bottom:14px"><label for="s-mes" class="muted">Mês</label>
         <select id="s-mes">${d.gastos.map((x) => `<option value="${x.mes}" ${x.mes === S.mes ? "selected" : ""}>${mes(x.mes)}</option>`).join("")}</select>
         <button class="btn" id="b-novo-gasto">Novo lançamento</button></div>
-      <section class="grid kpis">
+      <section class="kpis">
         ${kpi(`Renda de ${mes(g.mes)}`, brl(g.renda), g.outras_entradas ? `Outras entradas que não são renda: ${brl(g.outras_entradas)}` : "Salário e rendimentos")}
         ${kpi("Gastos", brl(g.gastos), `Fixo ${brl(g.fixo)} · variável ${brl(g.variavel)}`)}
         ${kpi("Sobra", comSinal(g.sobra), "Renda menos gastos", sinal(g.sobra))}
@@ -283,8 +295,8 @@ function vGastos(d) {
       $("b-novo-gasto").onclick = () => abrirForm("despesas", null);
       chart("c-meses", {
         legend: {}, xAxis: { type: "category", data: d.gastos.map((x) => mes(x.mes)) }, yAxis: eixoBRL,
-        series: [barra({ name: "Renda", data: d.gastos.map((x) => +x.renda.toFixed(2)), itemStyle: { color: SERIES[2], borderRadius: [4, 4, 0, 0] } }),
-          barra({ name: "Gasto fixo", stack: "g", data: d.gastos.map((x) => +x.fixo.toFixed(2)), itemStyle: { color: SERIES[0], borderColor: SURFACE, borderWidth: 1 } }),
+        series: [barra({ name: "Renda", data: d.gastos.map((x) => +x.renda.toFixed(2)), itemStyle: { color: SERIES[0], borderRadius: [4, 4, 0, 0] } }),
+          barra({ name: "Gasto fixo", stack: "g", data: d.gastos.map((x) => +x.fixo.toFixed(2)), itemStyle: { color: SERIES[2], borderColor: SURFACE, borderWidth: 1 } }),
           barra({ name: "Gasto variável", stack: "g", data: d.gastos.map((x) => +x.variavel.toFixed(2)), itemStyle: { color: SERIES[1], borderRadius: [4, 4, 0, 0], borderColor: SURFACE, borderWidth: 1 } })],
       });
       const c = [...g.cats].reverse();
@@ -333,7 +345,7 @@ function vEvolucao(d) {
       });
       chart("c-pass", {
         xAxis: { type: "category", data: d.passiva.meses.map((m) => mes(m.mes)) }, yAxis: eixoBRL,
-        series: [barra({ name: "Renda passiva", data: d.passiva.meses.map((m) => +m.valor.toFixed(2)), itemStyle: { color: SERIES[2], borderRadius: [4, 4, 0, 0] } })],
+        series: [barra({ name: "Renda passiva", data: d.passiva.meses.map((m) => +m.valor.toFixed(2)), itemStyle: { color: SERIES[0], borderRadius: [4, 4, 0, 0] } })],
       });
       chart("c-sim", {
         legend: {}, tooltip: { axisPointer: { type: "line" } }, xAxis: { type: "category", data: r.anos.map((a) => `${a} a`), boundaryGap: false }, yAxis: eixoBRL,
@@ -393,7 +405,7 @@ async function abrirForm(nome, linha) {
   if (!dados) { try { dados = await api("/api/table/" + nome); } catch (e) { return toast(e.message, true); } }
   const hoje = new Date().toISOString().slice(0, 10);
   const padrao = (c) => linha ? linha[c.name] : c.type === "date" && ["data", "data_snapshot", "data_ref"].includes(c.name) ? hoje : c.type === "month" ? hoje.slice(0, 7)
-    : c.name === "fonte" ? `Lançamento manual no WealthDashboard em ${dt(hoje)}` : c.name === "status" && c.type.includes("liquidado") ? "liquidado" : "";
+    : c.name === "fonte" ? `Lançamento manual no Dashboard Financeiro em ${dt(hoje)}` : c.name === "status" && c.type.includes("liquidado") ? "liquidado" : "";
   const campos = sc.columns.map((c) => {
     const req = sc.required.includes(c.name) ? " *" : "", id = "f-" + c.name, v = esc(padrao(c));
     let inp;
@@ -502,7 +514,7 @@ async function abrirConfig() {
   let c;
   try { c = await api("/api/config"); } catch (e) { return toast(e.message, true); }
   $("modal-in").innerHTML = `<h2 style="margin-top:0">Configurações: pasta de dados</h2>
-    <p class="muted small">O painel lê e grava nesta pasta. Caminho absoluto ou relativo à pasta do WealthDashboard. Fica salvo em <code>config.local.json</code>, que não vai para o Git.</p>
+    <p class="muted small">O painel lê e grava nesta pasta. Caminho absoluto ou relativo à pasta do painel. Fica salvo em <code>config.local.json</code>, que não vai para o Git.</p>
     <div class="field"><label for="c-dir">Pasta de dados</label><input id="c-dir" value="${esc(c.data_directory)}"></div>
     <p class="small">Pasta em uso: <code>${esc(c.resolved)}</code><br>Tabelas encontradas: ${c.tables_found.length ? esc(c.tables_found.join(", ")) : "nenhuma"} · planilha carteira.xlsx: ${c.workbook ? "sim" : "não"} · modo somente acréscimo: ${c.append_only ? "ligado" : "desligado"}</p>
     <div class="row end"><button class="btn" id="c-exemplo">Usar dados de exemplo</button><button class="btn" id="c-fechar">Fechar</button><button class="btn primary" id="c-salvar">Salvar e recarregar</button></div>`;
@@ -520,11 +532,14 @@ const VIEWS = { geral: vGeral, alocacao: vAlocacao, resultado: vResultado, gasto
 function desenhar() {
   const d = S.d;
   if (!d) return;
+  lerTema();
+  const escuro = document.documentElement.getAttribute("data-theme") === "dark";
+  $("b-tema").textContent = escuro ? "Modo claro" : "Modo escuro";
   S.charts.forEach((c) => c.dispose()); S.charts = [];
   $("tabs").innerHTML = TABS.map(([k, t]) => `<button role="tab" aria-selected="${S.tab === k}" data-tab="${k}">${t}</button>`).join("");
   document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { S.tab = b.dataset.tab; ls("wd.tab", S.tab); desenhar(); window.scrollTo(0, 0); }));
   $("b-priv").className = "ghost" + (S.priv ? " on" : "");
-  $("sub").textContent = d.vazio ? "sem dados" : `posição de ${dt(d.snapshot)} · ${d.pasta.resolved}`;
+  $("sub").textContent = d.vazio ? "sem dados" : `posição de ${dt(d.snapshot)}`;
   $("foot").textContent = d.config.disclaimer || "";
   if (d.vazio) {
     $("view").innerHTML = card("Pasta de dados sem posições", "", `<p>${esc(d.faltando.join(" "))}</p><p class="muted">Abra Configurações e aponte para uma pasta com a estrutura esperada, ou use os dados de exemplo.</p>`);
@@ -542,6 +557,12 @@ function desenhar() {
 $("f-classe").onchange = (e) => { S.classe = e.target.value; if (S.tab !== "resultado") S.tab = "resultado"; desenhar(); };
 $("f-tipo").onchange = (e) => { S.tipo = e.target.value; if (S.tab !== "resultado") S.tab = "resultado"; desenhar(); };
 $("b-priv").onclick = () => { S.priv = !S.priv; ls("wd.priv", S.priv ? "1" : "0"); desenhar(); };
+$("b-tema").onclick = () => {
+  const novo = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", novo);
+  ls("wd.tema", novo);
+  desenhar();
+};
 $("b-xlsx").onclick = () => (window.location.href = "/api/export.xlsx");
 $("b-print").onclick = () => window.print();
 $("b-cfg").onclick = abrirConfig;

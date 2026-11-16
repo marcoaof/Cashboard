@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-main.py - API local e servidor do frontend do WealthDashboard.
+main.py - API local e servidor do frontend do Dashboard Financeiro.
 
 Uso:  python -m uvicorn server.main:app --host 127.0.0.1 --port 8000
 """
@@ -28,7 +28,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="WealthDashboard", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="Dashboard Financeiro", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 @app.exception_handler(store.StoreError)
