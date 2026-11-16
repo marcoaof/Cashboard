@@ -9,6 +9,8 @@ mandar tudo para ele. O Cashboard é o lugar onde você enxerga o que está orga
 
 Ele não analisa ações, não recomenda investimento e não se conecta a banco nem a corretora.
 
+<img width="1794" height="1777" alt="image" src="https://github.com/user-attachments/assets/6e0d1fe7-95f1-43f7-b9e2-a1bcc8388d8c" />
+
 ## Começar
 
 1. Instale o [Python 3.10 ou mais novo](https://www.python.org/downloads/) e marque
@@ -183,5 +185,13 @@ mora em um lugar só, `TABLES` em `server/store.py`: os formulários, a importa�
 Cores e fontes ficam em variáveis: `web/styles.css` (tema moderno) e `web/classic.css` (tema
 clássico). As seis cores de série foram testadas quanto a contraste e daltonismo: ao trocar,
 mantenha a ordem.
+
+<img width="1794" height="1777" alt="image" src="https://github.com/user-attachments/assets/19ec1691-865c-4e74-9bb5-7f7679d38abd" />
+
+<img width="1794" height="1777" alt="image" src="https://github.com/user-attachments/assets/3ae8777e-8334-4d78-b244-80e03e988951" />
+
+<img width="1794" height="1532" alt="image" src="https://github.com/user-attachments/assets/9252af49-5f45-48da-8cf2-b866e24951e7" />
+
+<img width="1794" height="1563" alt="image" src="https://github.com/user-attachments/assets/c962eb4d-1d07-467b-853d-7a2ac60fe451" />
 
 Painel para organização pessoal. Não é recomendação de investimento.
