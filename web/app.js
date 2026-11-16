@@ -15,19 +15,41 @@ const ICONES = {
   olhoFechado: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>',
   sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   lua: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>',
-  mais: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  engrenagem: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   baixar: '<path d="M12 4v11M7 11l5 5 5-5M4 20h16"/>',
   imprimir: '<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/>',
   pasta: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
 };
 const ic = (nome) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONES[nome] || ""}</svg>`;
-/* Cores e fontes vem do CSS (styles.css), para os graficos acompanharem o tema claro ou escuro. */
-let SERIES = [], INK, INK2, MUTED, GRID, SURFACE, SURFACE2, FONTE;
+/* Cores e fontes vem do CSS (styles.css e classic.css), para os graficos acompanharem tema e modo. */
+let SERIES = [], INK, INK2, MUTED, GRID, SURFACE, SURFACE2, FONTE, POS, NEG, CLASSICO = false, ESCURO = false;
 function lerTema() {
   const css = getComputedStyle(document.documentElement), v = (n) => css.getPropertyValue(n).trim();
   SERIES = [1, 2, 3, 4, 5, 6].map((i) => v("--s" + i));
   INK = v("--ink"); INK2 = v("--ink-2"); MUTED = v("--muted"); GRID = v("--line");
-  SURFACE = v("--surface"); SURFACE2 = v("--surface-2"); FONTE = v("--font-ui");
+  SURFACE = v("--surface"); SURFACE2 = v("--surface-2"); FONTE = v("--font-ui"); POS = v("--pos"); NEG = v("--neg");
+  CLASSICO = document.documentElement.dataset.skin === "classico";
+  ESCURO = document.documentElement.dataset.theme === "dark";
+}
+/* Tema (moderno ou classico) e modo (claro, escuro ou automatico), guardados no navegador. */
+const temaDoSistema = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+function aparencia() {
+  const skin = ls("wd.skin") === "classico" ? "classico" : "moderno";
+  let modo = ls("wd.modo") || ls("wd.tema") || "auto";
+  if (modo !== "light" && modo !== "dark") modo = "auto";
+  return { skin, modo, tema: modo === "auto" ? (temaDoSistema && temaDoSistema.matches ? "dark" : "light") : modo };
+}
+function aplicarAparencia() {
+  const a = aparencia(), raiz = document.documentElement;
+  raiz.dataset.skin = a.skin; raiz.dataset.theme = a.tema;
+  document.querySelectorAll("[data-skin]").forEach((b) => b !== raiz && b.setAttribute("aria-checked", b.dataset.skin === a.skin));
+  document.querySelectorAll("[data-modo]").forEach((b) => b.setAttribute("aria-checked", b.dataset.modo === a.modo));
+  if (a.skin === "classico" && !$("fonte-classica")) {
+    const l = document.createElement("link");
+    l.rel = "stylesheet"; l.id = "fonte-classica";
+    l.href = "https://fonts.googleapis.com/css2?family=VT323&display=swap";
+    document.head.appendChild(l);
+  }
 }
 const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } };
 
@@ -92,6 +114,7 @@ async function carregar(silencioso) {
   }
 }
 async function vigiar() {
+  if (document.hidden) return;   // aba em segundo plano: confere quando voltar
   try {
     const s = await api("/api/state");
     conexao(true);
@@ -112,6 +135,15 @@ function cor(nome, grupo) {
   if (corDe[k] === undefined) corDe[k] = Object.keys(corDe).filter((x) => x.startsWith(grupo + "|")).length;
   return corDe[k] < SERIES.length ? SERIES[corDe[k]] : MUTED;
 }
+/* Quantas linhas a legenda ocupa na largura do grafico, para o grafico comecar logo abaixo dela. */
+const medidor = document.createElement("canvas").getContext("2d");
+function linhasDaLegenda(option, largura) {
+  medidor.font = `12px ${FONTE}`;
+  const itens = (option.series || []).filter((s) => s.name).map((s) => 10 + 5 + medidor.measureText(s.name).width + 10);
+  let linhas = 1, x = 0;
+  itens.forEach((w) => { if (x > 0 && x + w > largura) { linhas++; x = w; } else x += w; });
+  return linhas;
+}
 function chart(id, option) {
   const el = $(id);
   if (!el) return;
@@ -119,16 +151,59 @@ function chart(id, option) {
   const c = echarts.init(el, null, { renderer: "svg" });
   const eixo = { axisLine: { lineStyle: { color: GRID } }, axisTick: { show: false }, axisLabel: { color: MUTED }, splitLine: { lineStyle: { color: GRID } } };
   const base = {
-    backgroundColor: "transparent", color: SERIES, textStyle: { color: INK2, fontFamily: FONTE },
-    grid: { left: 4, right: 16, top: option.legend ? 38 : 14, bottom: 4, containLabel: true },
+    backgroundColor: "transparent", color: SERIES, textStyle: { color: INK2, fontFamily: FONTE }, animation: false,
+    grid: { left: 4, right: 16, top: option.legend ? 14 + 24 * linhasDaLegenda(option, el.clientWidth) : 14, bottom: 4, containLabel: true },
     tooltip: { trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: GRID, opacity: .35 } }, backgroundColor: SURFACE2, borderColor: GRID, textStyle: { color: INK, fontFamily: FONTE }, valueFormatter: (v) => brl(v) },
   };
   if (option.legend) option.legend = { top: 0, left: 0, textStyle: { color: INK2 }, icon: "roundRect", itemWidth: 10, itemHeight: 10, ...option.legend };
   for (const k of ["xAxis", "yAxis"]) if (option[k]) option[k] = { ...eixo, ...option[k], axisLabel: { ...eixo.axisLabel, ...(option[k].axisLabel || {}) } };
+  if (CLASSICO) classico(option, base);
   c.setOption({ ...base, ...option, tooltip: { ...base.tooltip, ...(option.tooltip || {}) }, grid: { ...base.grid, ...(option.grid || {}) } });
   S.charts.push(c);
 }
-window.addEventListener("resize", () => S.charts.forEach((c) => c.resize()));
+/* Tema classico: barras com brilho de vidro e contorno, dica no estilo da epoca. */
+function misturar(hex, alvo, t) {
+  const n = parseInt(hex.slice(1), 16), a = alvo === "branco" ? 255 : 0;
+  const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x) => Math.round(x + (a - x) * t));
+  return "#" + c.map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+function brilho(cor, deitada) {
+  if (typeof cor !== "string" || cor[0] !== "#") return cor;
+  return new echarts.graphic.LinearGradient(0, 0, deitada ? 0 : 1, deitada ? 1 : 0, [
+    { offset: 0, color: misturar(cor, "branco", .5) }, { offset: .48, color: misturar(cor, "branco", .18) },
+    { offset: .5, color: cor }, { offset: 1, color: misturar(cor, "preto", .12) }]);
+}
+function classico(option, base) {
+  const deitada = option.yAxis && option.yAxis.type === "category";
+  const vidro = (st) => {
+    if (!st || typeof st.color !== "string") return st;
+    return { ...st, borderColor: misturar(st.color, "preto", .35), borderWidth: 1, borderRadius: 1, color: brilho(st.color, deitada) };
+  };
+  (option.series || []).forEach((sr) => {
+    if (sr.type === "bar") {
+      sr.itemStyle = vidro(sr.itemStyle);
+      if (Array.isArray(sr.data)) sr.data = sr.data.map((x) => (x && x.itemStyle ? { ...x, itemStyle: vidro(x.itemStyle) } : x));
+    }
+  });
+  if (option.legend) option.legend.icon = "rect";
+  base.tooltip.extraCssText = ESCURO
+    ? "border-radius:0;box-shadow:2px 2px 0 #000;font-family:VT323,monospace;font-size:17px"
+    : "border-radius:4px;box-shadow:2px 2px 4px rgba(0,0,0,.3);background:linear-gradient(#fff,#e4e5f0)";
+  base.tooltip.backgroundColor = ESCURO ? "#000" : "#ffffff";
+  base.tooltip.borderColor = ESCURO ? "#6e6e8c" : "#767676";
+  base.tooltip.textStyle = { color: ESCURO ? "#3cff3c" : "#000", fontFamily: ESCURO ? "VT323, monospace" : FONTE, fontSize: ESCURO ? 17 : 13 };
+}
+/* Ao redimensionar, redesenha uma vez por quadro e refaz a tela se a legenda mudar de altura. */
+let quadro = 0;
+window.addEventListener("resize", () => {
+  if (quadro) return;
+  quadro = requestAnimationFrame(() => { quadro = 0; S.charts.forEach((c) => c.resize()); });
+});
+let largura = window.innerWidth, espera = 0;
+window.addEventListener("resize", () => {
+  clearTimeout(espera);
+  espera = setTimeout(() => { if (Math.abs(window.innerWidth - largura) > 80) { largura = window.innerWidth; desenhar(); } }, 250);
+});
 const eixoBRL = { type: "value", axisLabel: { formatter: (v) => brlAbbr(v) } };
 const barra = (extra) => ({ type: "bar", barMaxWidth: 24, itemStyle: { borderRadius: [3, 3, 0, 0], borderColor: SURFACE, borderWidth: 1 }, ...extra });
 
@@ -169,30 +244,31 @@ function vGeral(d) {
   // Faixa de composicao: mesmas partes e mesmas cores do grafico de evolucao.
   const partes = PARTES.map(([nome, k], i) => ({ nome, v: b[k], cor: SERIES[i] })).filter((p) => p.v > 0);
   const hero = `<section class="hero">
-      <div><span class="eyebrow">Patrimônio total · posição de ${dt(d.snapshot)}</span>
+      <div><div class="hero-head"><span class="hero-label">Patrimônio total</span><span class="hero-date">Posição em ${dt(d.snapshot)}</span></div>
         <div class="hero-num">${brl(b.total)}</div><p class="hero-sub">${delta}</p></div>
-      <div><div class="strip" role="img" aria-label="Composição do patrimônio por bloco">${partes.map((p) => `<i style="flex:${p.v};background:${p.cor}" title="${p.nome}: ${pct(p.v / b.total, 1)}"></i>`).join("")}</div>
-        <ul class="legend">${partes.map((p) => `<li><span class="dot" style="background:${p.cor};margin:0"></span><span class="nome">${p.nome}</span><span class="v">${brl(p.v)}</span><span class="p">${pct(p.v / b.total, 1)}</span></li>`).join("")}</ul></div>
+      <div><div class="strip" role="img" aria-label="Composição do patrimônio por bloco">${partes.map((p) => `<i style="flex:${p.v};background-color:${p.cor}" title="${p.nome}: ${pct(p.v / b.total, 1)}"></i>`).join("")}</div>
+        <ul class="legend">${partes.map((p) => `<li><span class="dot" style="background-color:${p.cor};margin:0"></span><span class="nome">${p.nome}</span><span class="v">${brl(p.v)}</span><span class="p">${pct(p.v / b.total, 1)}</span></li>`).join("")}</ul></div>
     </section>`;
   const kp = [
     kpi("Carteira de investimento", brl(b.base), `Base da alocação. Caixa ainda não investido: ${pct(b.base ? b.caixa / b.base : 0)}`),
     kpi(tCusto ? `Lucro não realizado: ${esc(tCusto)}` : "Lucro não realizado", tCusto ? comSinal(r.sobre_custo) : "n/d",
       tCusto ? `${pct(r.sobre_custo / r.custo_total)} sobre o custo de ${brl(r.custo_total)}. Só entra quem tem preço médio.` : "Nenhuma posição com custo no arquivo", tCusto ? sinal(r.sobre_custo) : ""),
-    kpi(tObs ? `Rendimento: ${esc(tObs)}` : "Rendimento observado", tObs ? comSinal(r.observado) : "n/d",
+    !tObs ? "" : kpi(`Rendimento: ${esc(tObs)}`, tObs ? comSinal(r.observado) : "n/d",
       tObs ? `Variação desde ${dt(r.observado_desde)}, primeira posição no arquivo. Não é o lucro desde a aplicação.` : "Sem títulos nessa condição", tObs ? sinal(r.observado) : ""),
     kpi("Renda passiva recebida", brl(d.passiva.total_12m), `Rendimentos lançados nos últimos ${d.passiva.n_meses} meses`),
-    g ? kpi(`Gastos de ${mes(g.mes)}${parcial(d, g.mes) ? " (parcial)" : ""}`, brl(g.gastos), parcial(d, g.mes) ? `Mês em andamento. Renda até aqui: ${brl(g.renda)}` : `Renda ${brl(g.renda)} · poupança ${pct(g.taxa)}`) : kpi("Gastos do mês", "n/d", "Sem lançamentos"),
+    g ? kpi(`Gastos de ${mes(g.mes)}${parcial(d, g.mes) ? " (parcial)" : ""}`, brl(g.gastos), parcial(d, g.mes) ? `Mês em andamento. Renda até aqui: ${brl(g.renda)}` : `Renda de ${brl(g.renda)}, poupança de ${pct(g.taxa)}`) : kpi("Gastos do mês", "n/d", "Sem lançamentos"),
     kpi("Reserva de emergência", brl(res.atual), !res.meta ? "Meta não cadastrada" : `<div class="prog"><i style="width:${Math.min(100, res.atual / res.meta * 100)}%"></i></div>`
       + (res.atual >= res.meta ? `Meta de ${brl(res.meta)} atingida, com ${brl(res.atual - res.meta)} a mais` : `${pct(res.atual / res.meta, 0)} da meta de ${brl(res.meta)}. Faltam ${brl(res.meta - res.atual)}`)),
   ].join("");
   const avisos = [];
-  if (d.alertas_posicao) avisos.push(`${d.alertas_posicao} de ${d.posicoes.length} posições têm valor estimado, carregado ou por premissa (veja a coluna Obs em Lucros).`);
+  if (d.alertas_posicao) avisos.push(`${d.alertas_posicao} de ${d.posicoes.length} posições têm valor estimado, carregado ou por premissa. Em Lucros, a etiqueta "estimado" mostra a observação ao passar o mouse. Como resolver: atualizar a posição com o extrato mais recente.`);
   d.faltando.forEach((f) => avisos.push(f));
   const banner = avisos.length ? `<details class="banner"><summary>${avisos.length} ponto(s) de atenção nos dados</summary><ul>${avisos.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></details>` : "";
-  const tipos = tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "Rendimento observado", n: 1 }, { t: "Sem cálculo" }],
+  const so = (cond, x) => (cond ? [x] : []);
+  const tipos = tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Lucro sobre custo", n: 1 }, ...so(tObs, { t: "Rendimento observado", n: 1 }), { t: "Sem cálculo" }],
     r.por_tipo.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? `<span class="${sinal(t.sobre_custo)}">${comSinal(t.sobre_custo)}</span>` : "",
-      t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : "", `<span class="small">${semCalculo(t)}</span>`]),
-    ["Total", brl(b.total), comSinal(r.sobre_custo), comSinal(r.observado), ""]);
+      ...so(tObs, t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : ""), `<span class="small">${semCalculo(t)}</span>`]),
+    ["Total", brl(b.total), comSinal(r.sobre_custo), ...so(tObs, comSinal(r.observado)), ""]);
   const ordem = d.ordem ? tabela([{ t: "Classe" }, { t: "Instrumento" }, { t: "Valor", n: 1 }], d.ordem.itens.map((i) => [esc(i.classe), esc(i.instrumento), brl(i.valor)]), ["Total", "", brl(d.ordem.total)])
     + `<p class="muted small">Fonte: ${esc(d.ordem.fonte)}</p>` : '<p class="muted">Nenhum aporte planejado em aportes.csv.</p>';
   const eventos = tabela([{ t: "Data" }, { t: "Evento" }, { t: "Valor", n: 1 }, { t: "Ação" }],
@@ -204,7 +280,7 @@ function vGeral(d) {
       <section class="grid cols">
         ${card("Evolução do patrimônio", "Uma barra por posição registrada (snapshot), dividida por bloco.", '<div id="c-evo" class="chart"></div>')}
         ${card("Patrimônio por tipo de produto", "Valor de cada tipo na posição atual.", '<div id="c-tipo" class="chart"></div>')}
-        ${card("Lucros por tipo de produto", "Duas medidas que não se somam. Sobre custo: valor menos quantidade vezes preço médio. Observado: variação desde a primeira posição do título no arquivo. Em branco: a medida não existe para o tipo.", tipos)}
+        ${card("Lucros por tipo de produto", tObs ? "Duas medidas que não se somam. Sobre custo: valor menos o custo de aquisição. Observado: variação desde a primeira posição do título no arquivo." : "Valor da posição menos o custo de aquisição. Conta corrente não tem lucro a medir.", tipos)}
         ${card(d.ordem ? `Ordem planejada de ${mes(d.ordem.mes)}` : "Ordem do mês", "Último plano registrado em aportes.csv. Planejado não é executado.", ordem)}
         ${card("Próximos eventos", "Vencimentos e datas em aberto, de hoje em diante.", eventos)}
         ${card("Indicadores de referência", "Último valor registrado em indicadores.csv (passe o mouse no nome para ver a fonte). Períodos diferentes do da carteira: não compare direto.", ind)}
@@ -243,10 +319,10 @@ function vAlocacao(d) {
   const w = (v) => `${Math.min(100, v / escala * 100)}%`;
   const tag = { ok: '<span class="tag ok">dentro da banda</span>', abaixo: '<span class="tag warn">abaixo da banda</span>', acima: '<span class="tag crit">acima da banda</span>' };
   const barras = a.linhas.map((l) => `<div class="aloc">
-      <div><span class="dot" style="background:${cor(l.classe, "classe")}"></span>${esc(l.classe)}</div>
-      <div class="track" title="Atual ${pct(l.pct)} · alvo ${pct(l.alvo)} · banda ${pct(l.min)} a ${pct(l.max)}">
+      <div><span class="dot" style="background-color:${cor(l.classe, "classe")}"></span>${esc(l.classe)}</div>
+      <div class="track" title="Atual ${pct(l.pct)}, alvo ${pct(l.alvo)}, banda de ${pct(l.min)} a ${pct(l.max)}">
         ${l.alvo != null && l.max > 0 ? `<div class="band" style="left:${w(l.min)};width:calc(${w(l.max)} - ${w(l.min)})"></div>` : ""}
-        <div class="bar" style="width:${w(l.pct)};background:${cor(l.classe, "classe")}"></div>
+        <div class="bar" style="width:${w(l.pct)};background-color:${cor(l.classe, "classe")}"></div>
         ${l.alvo != null && l.classe !== d.config.cash_class ? `<div class="alvo" style="left:${w(l.alvo)}"></div>` : ""}
       </div>
       <div class="num small">${pct(l.pct)} ${l.classe === d.config.cash_class ? "" : `<span class="muted">alvo ${pct(l.alvo, 0)}</span>`}<br>${l.classe === d.config.cash_class ? '<span class="tag">dinheiro a investir</span>' : tag[l.situacao] || ""}</div></div>`).join("");
@@ -278,12 +354,12 @@ function vAlocacao(d) {
 /* ---------------------------------------------------------------- aba: lucros */
 function vResultado(d) {
   const r = d.resultado, todas = d.posicoes.filter((p) => p.valor), ps = filtradas().filter((p) => p.valor);
-  const filtrando = !!(S.classe || S.tipo), rotulo = [S.tipo, S.classe].filter(Boolean).join(" · ");
+  const filtrando = !!(S.classe || S.tipo), rotulo = [S.tipo, S.classe].filter(Boolean).join(", ");
   const tipos = porTipo(ps), soma = (k) => tipos.reduce((t, x) => t + x[k], 0);
   const custo = soma("custo"), sobre = soma("sobre_custo"), obs = soma("observado"), temCusto = soma("n_custo") > 0, temObs = soma("n_observado") > 0;
   const com = ps.filter((p) => p.resultado != null).sort((a, b) => a.resultado - b.resultado);
   const linhas = [...ps].sort((a, b) => b.valor - a.valor).map((p) => [
-    `${esc(p.ativo)}${p.alerta ? ` <span class="tag warn" title="${esc(p.obs)}">estimado</span>` : ""}<br><span class="muted small">${esc(p.indexador)}${p.vencimento ? ` · vence ${dt(p.vencimento)}` : ""}</span>`,
+    `${esc(p.ativo)}${p.alerta ? ` <span class="tag warn" title="${esc(p.obs)}">estimado</span>` : ""}<br><span class="muted small">${esc(p.indexador)}${p.vencimento ? `, vence em ${dt(p.vencimento)}` : ""}</span>`,
     esc(p.tipo), esc(p.classe), qtd(p.quantidade), p.preco_medio == null ? "" : brl(p.preco_medio), p.preco_mercado == null ? "" : brl(p.preco_mercado),
     brl(p.valor), p.resultado == null ? '<span class="muted">n/d</span>' : `<span class="${sinal(p.resultado)}">${comSinal(p.resultado)}</span>`,
     p.resultado_pct == null ? "" : `<span class="${sinal(p.resultado_pct)}">${pct(p.resultado_pct)}</span>`, `<span class="small muted">${metodo(p)}</span>`]);
@@ -293,27 +369,27 @@ function vResultado(d) {
     ${filtrando ? `<button class="btn" id="f-limpar">Limpar filtros</button><span class="muted small">Mostrando ${ps.length} de ${todas.length} posições. Totais, gráfico e tabelas abaixo seguem o filtro.</span>` : `<span class="muted small">${todas.length} posições</span>`}</div>`;
   const real = r.realizado;
   const realTab = tabela([{ t: "Data" }, { t: "Ticker" }, { t: "Qtd", n: 1 }, { t: "Venda", n: 1 }, { t: "Custo", n: 1 }, { t: "Resultado", n: 1 }],
-    real.itens.map((i) => [dt(i.data), esc(i.ticker), qtd(i.quantidade), brl(i.venda), brl(i.custo), `<span class="${sinal(i.resultado)}">${comSinal(i.resultado)}</span>`]),
+    real.itens.map((i) => [dt(i.data), esc(i.ticker) + (i.base === "posicao" ? ` <span class="tag" title="Sem compra em transacoes.csv: custo = quantidade vezes o preço médio de ${brl(i.pm)} registrado em posicoes.csv (posição de ${dt(i.base_data)})">preço médio</span>` : ""), qtd(i.quantidade), brl(i.venda), brl(i.custo), `<span class="${sinal(i.resultado)}">${comSinal(i.resultado)}</span>`]),
     ["Total", "", "", "", "", comSinal(real.total)]);
-  const semCusto = real.sem_custo.length ? `<p class="small muted">Vendas sem compra registrada (resultado não calculado): ${real.sem_custo.map((s) => `${esc(s.ativo)} em ${dt(s.data)}, ${brl(s.venda)}`).join("; ")}.</p>` : "";
+  const semCusto = real.sem_custo.length ? `<p class="small muted">Fora do total, por falta de custo: ${real.sem_custo.map((s) => `${esc(s.ativo)} em ${dt(s.data)}, vendido por ${brl(s.venda)}`).join("; ")}. Lance a compra em transacoes.csv para entrar na conta.</p>` : "";
   return {
     html: `${filtros}<section class="kpis">
         ${kpi(filtrando ? `Valor: ${esc(rotulo)}` : "Valor das posições", brl(soma("valor")), `${ps.length} posição(ões) em ${dt(d.snapshot)}`)}
         ${kpi("Lucro não realizado sobre custo", temCusto ? comSinal(sobre) : "n/d", temCusto ? `${custo ? pct(sobre / custo) : ""} sobre o custo de ${brl(custo)} (${esc(lista(tipos.filter((t) => t.n_custo).map((t) => t.tipo)))})` : `Nenhuma posição com preço médio ${filtrando ? "neste filtro" : "no arquivo"}`, temCusto ? sinal(sobre) : "")}
-        ${kpi("Rendimento observado", temObs ? comSinal(obs) : "n/d", temObs ? `Desde ${dt(r.observado_desde)} (${esc(lista(tipos.filter((t) => t.n_observado).map((t) => t.tipo)))}). Não é o lucro desde a aplicação.` : `Nenhum título nessa condição ${filtrando ? "neste filtro" : ""}`, temObs ? sinal(obs) : "")}
-        ${filtrando ? "" : kpi("Resultado realizado", real.itens.length ? comSinal(real.total) : "n/d", real.itens.length ? `${real.itens.length} venda(s) com custo registrado` : `${real.sem_custo.length} venda(s) sem compra registrada: não dá para calcular`, real.itens.length ? sinal(real.total) : "")}
+        ${!temObs && !filtrando ? "" : kpi("Rendimento observado", temObs ? comSinal(obs) : "n/d", temObs ? `Desde ${dt(r.observado_desde)} (${esc(lista(tipos.filter((t) => t.n_observado).map((t) => t.tipo)))}). Não é o lucro desde a aplicação.` : `Nenhum título nessa condição ${filtrando ? "neste filtro" : ""}`, temObs ? sinal(obs) : "")}
+        ${filtrando ? "" : kpi("Resultado realizado", real.itens.length ? comSinal(real.total) : "n/d", real.itens.length ? `${real.itens.length} venda(s) com custo${real.sem_custo.length ? `; ${real.sem_custo.length} sem custo ficam fora da soma` : ""}` : `${real.sem_custo.length} venda(s) sem custo: não dá para calcular`, real.itens.length ? sinal(real.total) : "")}
         ${filtrando ? "" : kpi("IR retido registrado", brl(real.ir_pago), "Soma de ir_brl em transacoes.csv")}
       </section>
       <section class="grid cols">
-        ${card("Resultado por posição", "Só posições com resultado calculável. Verde: ganho. Terracota: perda.", com.length ? `<div id="c-res" class="chart" style="height:${Math.max(180, com.length * 38 + 50)}px"></div>` : `<p class="muted">Nenhuma posição ${filtrando ? "deste filtro " : ""}tem resultado calculável: falta o custo de aquisição no arquivo.</p>`)}
-        ${card("Resultado por tipo de produto", "Soma das posições de cada tipo. As duas medidas não se somam: cobrem períodos diferentes. Em branco: a medida não existe para o tipo.",
-          tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Custo", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "%", n: 1 }, { t: "Rendimento observado", n: 1 }, { t: "Sem cálculo" }],
+        ${card("Resultado por posição", "Só posições com resultado calculável. À direita do zero, ganho; à esquerda, perda.", com.length ? `<div id="c-res" class="chart" style="height:${Math.max(180, com.length * 38 + 50)}px"></div>` : `<p class="muted">Nenhuma posição ${filtrando ? "deste filtro " : ""}tem resultado calculável: falta o custo de aquisição no arquivo.</p>`)}
+        ${card("Resultado por tipo de produto", temObs ? "Soma das posições de cada tipo. As duas medidas não se somam: cobrem períodos diferentes." : "Soma das posições de cada tipo: valor menos o custo de aquisição.",
+          tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Custo", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "%", n: 1 }, ...(temObs ? [{ t: "Rendimento observado", n: 1 }] : []), { t: "Sem cálculo" }],
             tipos.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? brl(t.custo) : "", t.n_custo ? `<span class="${sinal(t.sobre_custo)}">${comSinal(t.sobre_custo)}</span>` : "",
-              t.n_custo && t.custo ? pct(t.sobre_custo / t.custo) : "", t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : "", `<span class="small">${semCalculo(t)}</span>`])))}
+              t.n_custo && t.custo ? pct(t.sobre_custo / t.custo) : "", ...(temObs ? [t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : ""] : []), `<span class="small">${semCalculo(t)}</span>`])))}
         ${card(filtrando ? `Posições: ${esc(rotulo)}` : "Posições", `Posição de ${dt(d.snapshot)}. Etiqueta "estimado": valor carregado, estimado ou por premissa (passe o mouse para ler a observação).`,
           tabela([{ t: "Ativo" }, { t: "Tipo" }, { t: "Classe" }, { t: "Qtd", n: 1 }, { t: "Preço médio", n: 1 }, { t: "Preço atual", n: 1 }, { t: "Valor", n: 1 }, { t: "Resultado", n: 1 }, { t: "%", n: 1 }, { t: "Método" }], linhas,
             ["Total", "", "", "", "", "", brl(soma("valor")), "", "", ""]), "wide")}
-        ${card("Resultado realizado", `Venda menos custo médio das compras registradas em transacoes.csv.${filtrando ? " Este quadro não segue o filtro: mostra todas as vendas." : ""}`, realTab + semCusto, "wide")}
+        ${card("Resultado realizado", `Venda menos o custo. Custo: média das compras em transacoes.csv; sem compra lá, o preço médio da posição em posicoes.csv (etiqueta "preço médio").${filtrando ? " Este quadro não segue o filtro: mostra todas as vendas." : ""}`, realTab + semCusto, "wide")}
       </section>`,
     depois() {
       $("f-classe").onchange = (e) => { S.classe = e.target.value; desenhar(); };
@@ -322,7 +398,7 @@ function vResultado(d) {
       if (com.length) chart("c-res", {
         grid: { right: 24 }, xAxis: eixoBRL, yAxis: { type: "category", data: com.map((p) => p.ticker || p.ativo.slice(0, 26)), axisLabel: { color: INK2 } },
         tooltip: { formatter: (a) => { const p = com[a[0].dataIndex]; return `${esc(p.ativo)}<br><b>${comSinal(p.resultado)}</b> (${pct(p.resultado_pct)})<br>${metodo(p)}`; } },
-        series: [barra({ data: com.map((p) => ({ value: +p.resultado.toFixed(2), itemStyle: { color: p.resultado >= 0 ? SERIES[0] : SERIES[3], borderRadius: p.resultado >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } })) })],
+        series: [barra({ data: com.map((p) => ({ value: +p.resultado.toFixed(2), itemStyle: { color: p.resultado >= 0 ? POS : NEG, borderRadius: p.resultado >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } })) })],
       });
     },
   };
@@ -342,7 +418,7 @@ function vGastos(d) {
         <button class="btn" id="b-novo-gasto">Novo lançamento</button></div>
       <section class="kpis">
         ${kpi(`Renda de ${mes(g.mes)}`, brl(g.renda), g.outras_entradas ? `Outras entradas que não são renda: ${brl(g.outras_entradas)}` : "Salário e rendimentos")}
-        ${kpi("Gastos", brl(g.gastos), `Fixo ${brl(g.fixo)} · variável ${brl(g.variavel)}`)}
+        ${kpi("Gastos", brl(g.gastos), `Fixo de ${brl(g.fixo)} e variável de ${brl(g.variavel)}`)}
         ${kpi("Sobra", comSinal(g.sobra), "Renda menos gastos", sinal(g.sobra))}
         ${kpi("Taxa de poupança", pct(g.taxa), "(renda − gastos) ÷ renda, no mês", sinal(g.taxa))}
       </section>
@@ -578,7 +654,7 @@ async function abrirConfig() {
   $("modal-in").innerHTML = `<h2 style="margin-top:0">Configurações: pasta de dados</h2>
     <p class="muted small">O painel lê e grava nesta pasta. Caminho absoluto ou relativo à pasta do painel. Fica salvo em <code>config.local.json</code>, que não vai para o Git.</p>
     <div class="field"><label for="c-dir">Pasta de dados</label><input id="c-dir" value="${esc(c.data_directory)}"></div>
-    <p class="small">Pasta em uso: <code>${esc(c.resolved)}</code><br>Tabelas encontradas: ${c.tables_found.length ? esc(c.tables_found.join(", ")) : "nenhuma"} · planilha carteira.xlsx: ${c.workbook ? "sim" : "não"} · modo somente acréscimo: ${c.append_only ? "ligado" : "desligado"}</p>
+    <p class="small">Pasta em uso: <code>${esc(c.resolved)}</code><br>Tabelas encontradas: ${c.tables_found.length ? esc(c.tables_found.join(", ")) : "nenhuma"}<br>Planilha carteira.xlsx: ${c.workbook ? "encontrada" : "não encontrada"}<br>Modo somente acréscimo: ${c.append_only ? "ligado" : "desligado"}</p>
     <div class="row end"><button class="btn" id="c-exemplo">Usar dados de exemplo</button><button class="btn" id="c-fechar">Fechar</button><button class="btn primary" id="c-salvar">Salvar e recarregar</button></div>`;
   $("modal").classList.add("open");
   const fechar = () => $("modal").classList.remove("open");
@@ -594,11 +670,8 @@ const VIEWS = { geral: vGeral, alocacao: vAlocacao, resultado: vResultado, gasto
 function desenhar() {
   const d = S.d;
   if (!d) return;
+  aplicarAparencia();
   lerTema();
-  const escuro = document.documentElement.getAttribute("data-theme") === "dark";
-  $("b-tema").innerHTML = `${ic(escuro ? "sol" : "lua")}<span class="lbl">${escuro ? "Modo claro" : "Modo escuro"}</span>`;
-  $("b-tema").title = escuro ? "Mudar para o modo claro" : "Mudar para o modo escuro";
-  $("b-tema").setAttribute("aria-label", $("b-tema").title);
   $("b-priv").innerHTML = `${ic(S.priv ? "olhoFechado" : "olho")}<span class="lbl">${S.priv ? "Valores ocultos" : "Ocultar valores"}</span>`;
   $("b-priv").title = S.priv ? "Mostrar os valores em reais" : "Ocultar os valores em reais e manter os percentuais";
   $("b-priv").setAttribute("aria-label", $("b-priv").title);
@@ -635,9 +708,11 @@ $("tabs").onkeydown = (e) => {
 $("b-home").onclick = () => irPara("geral");
 $("b-sync").onclick = async () => { await carregar(true); if ($("sync").classList.contains("ok")) toast("Dados recarregados da pasta."); };
 const menu = (abrir) => { $("menu").hidden = !abrir; $("b-menu").setAttribute("aria-expanded", abrir); };
-$("b-menu").innerHTML = `${ic("mais")}<span class="lbl">Mais</span>`;
-$("b-menu").setAttribute("aria-label", "Mais ações: exportar, imprimir e pasta de dados");
-$("b-menu").onclick = (e) => { e.stopPropagation(); menu($("menu").hidden); if (!$("menu").hidden) $("menu").querySelector("button").focus(); };
+$("b-menu").innerHTML = `${ic("engrenagem")}<span class="lbl">Opções</span>`;
+$("b-menu").onclick = (e) => { e.stopPropagation(); menu($("menu").hidden); if (!$("menu").hidden) $("menu").querySelector("[aria-checked=true]").focus(); };
+document.querySelectorAll(".skin").forEach((b) => (b.onclick = () => { ls("wd.skin", b.dataset.skin); desenhar(); }));
+document.querySelectorAll("[data-modo]").forEach((b) => (b.onclick = () => { ls("wd.modo", b.dataset.modo); desenhar(); }));
+if (temaDoSistema) temaDoSistema.addEventListener("change", () => { if (aparencia().modo === "auto") desenhar(); });
 document.querySelectorAll("[data-ic]").forEach((el) => (el.outerHTML = ic(el.dataset.ic)));
 document.addEventListener("click", (e) => { if (!e.target.closest(".menu-wrap")) menu(false); });
 document.addEventListener("keydown", (e) => {
@@ -645,15 +720,10 @@ document.addEventListener("keydown", (e) => {
   if (!$("menu").hidden) { menu(false); $("b-menu").focus(); }
   $("drawer").classList.remove("open"); $("modal").classList.remove("open");
 });
-$("menu").onclick = () => menu(false);
-window.addEventListener("scroll", () => $("top").classList.toggle("rolou", window.scrollY > 4), { passive: true });
+$("menu").onclick = (e) => { if (e.target.closest(".opt-item")) menu(false); };
+let rolou = false;
+window.addEventListener("scroll", () => { const r = window.scrollY > 4; if (r !== rolou) { rolou = r; $("top").classList.toggle("rolou", r); } }, { passive: true });
 $("b-priv").onclick = () => { S.priv = !S.priv; ls("wd.priv", S.priv ? "1" : "0"); desenhar(); };
-$("b-tema").onclick = () => {
-  const novo = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
-  document.documentElement.setAttribute("data-theme", novo);
-  ls("wd.tema", novo);
-  desenhar();
-};
 $("b-xlsx").onclick = () => (window.location.href = "/api/export.xlsx");
 $("b-print").onclick = () => window.print();
 $("b-cfg").onclick = abrirConfig;
@@ -662,3 +732,4 @@ $("modal").onclick = (e) => { if (e.target.id === "modal") $("modal").classList.
 
 carregar();
 setInterval(vigiar, 4000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) vigiar(); });

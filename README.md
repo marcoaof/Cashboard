@@ -17,9 +17,15 @@ do Git.
 | Evolução e simulador | Histórico das posições, aportes executados e planejados, renda passiva recebida, simulador de projeção com três cenários |
 | Gestão | Inclusão, edição e exclusão de linhas nas tabelas; leitura e edição de notas e relatórios em Markdown |
 
-Controles no topo: filtros por classe e por tipo de produto, modo privacidade (oculta valores em
-reais e mantém percentuais), tema claro ou escuro (segue o sistema até você escolher), exportação em
-`.xlsx`, impressão e a pasta de dados.
+No topo ficam o estado da sincronização (clique para recarregar), o botão de ocultar valores (esconde
+os reais e mantém os percentuais) e a engrenagem de opções:
+
+- **Tema:** moderno ou clássico.
+- **Modo:** claro, escuro ou automático (segue o sistema).
+- **Dados:** exportar planilha `.xlsx`, imprimir ou salvar em PDF, e escolher a pasta de dados.
+
+Os filtros por classe e por tipo de produto ficam na aba Lucros. Tema e modo ficam guardados no
+navegador.
 
 ## Instalar e rodar (Windows)
 
@@ -40,13 +46,13 @@ py -3 -m venv .venv
 
 Outra porta: defina `WD_PORT` antes de rodar o `.bat` (`set WD_PORT=8080`).
 
-Os gráficos usam a biblioteca ECharts, carregada de `cdn.jsdelivr.net`, e as fontes (Fraunces, IBM Plex
-Sans e IBM Plex Mono) vêm do Google Fonts. Sem internet, as tabelas e os números continuam funcionando
-com as fontes do sistema, e os gráficos ficam indisponíveis.
+Os gráficos usam a biblioteca ECharts, carregada de `cdn.jsdelivr.net`. O tema moderno usa a fonte do
+sistema; o clássico usa Segoe UI e Tahoma, e a fonte VT323 (Google Fonts) nos visores. Sem internet, as
+tabelas e os números continuam funcionando e os gráficos ficam indisponíveis.
 
-Cores e fontes ficam em variáveis no topo de `web/styles.css`, uma lista para o tema claro e outra para
-o escuro. As seis cores de série dos gráficos foram testadas quanto a contraste e daltonismo: ao
-trocar, mantenha a ordem.
+Cores e fontes ficam em variáveis: `web/styles.css` (tema moderno, claro e escuro) e `web/classic.css`
+(tema clássico, claro e escuro). As seis cores de série de cada combinação foram testadas quanto a
+contraste e daltonismo: ao trocar, mantenha a ordem.
 
 ## Configurar a pasta de dados
 
@@ -76,7 +82,7 @@ que vale para todos fica em `config.example.json`. Chaves aceitas:
 | `frozen_paths` | Pastas em que arquivo existente não é sobrescrito (dá para criar novo) | vazio |
 | `parameters` | Parâmetros usados quando não há planilha (ver abaixo) | vazio |
 | `simulator` | Taxas reais e prazo iniciais do simulador | 3%, 5%, 7% e 20 anos |
-| `disclaimer` | Texto do rodapé | aviso genérico |
+| `disclaimer` | Texto do rodapé | "Dashboard para organização pessoal." |
 
 ## Estrutura da pasta de dados
 
@@ -133,8 +139,10 @@ vazia. Usa os nomes que contêm "meta" e "reserva", e "aporte" e "mensal". Sem p
   as duas colunas preenchidas.
 - **Rendimento observado:** para título com vencimento e sem custo no arquivo, valor atual menos o
   valor no primeiro snapshot em que o título aparece. Não é o lucro desde a aplicação.
-- **Resultado realizado:** valor da venda menos o custo médio das compras do mesmo ticker registradas
-  em `transacoes.csv`. Venda sem compra registrada aparece como "sem custo".
+- **Resultado realizado:** valor da venda menos o custo. O custo é a média das compras do mesmo ticker
+  em `transacoes.csv`; sem compra lá, vale o preço médio que `posicoes.csv` registra para o papel no
+  último snapshot até a data da venda (a linha ganha a etiqueta "preço médio"). Sem nenhum dos dois, a
+  venda fica fora do total e aparece como "sem custo".
 - **Tipo de produto:** deduzido do nome do ativo (`LCI`, `LCA`, `CDB`, `Tesouro`, `Conta`) e, para quem
   tem ticker, de "ETF" ou "FII" na coluna `indexador`.
 - **Taxa de poupança:** `(renda − gastos) ÷ renda`, no mês.
@@ -170,7 +178,7 @@ WealthDashboard/
 │   ├── main.py               API REST e servidor do frontend
 │   ├── store.py              leitura, gravação, backup e detecção de mudança
 │   └── metrics.py            cálculos do painel
-├── web/                      index.html, styles.css, app.js
+├── web/                      index.html, styles.css, classic.css, app.js
 └── sample_data/              dados fictícios para rodar de imediato
 ```
 
@@ -178,4 +186,4 @@ API local: `GET /api/dashboard`, `GET /api/state`, `GET|PUT /api/config`, `GET /
 `GET|POST /api/table/{nome}`, `PUT|DELETE /api/table/{nome}/{linha}`, `GET /api/docs`,
 `GET|PUT|DELETE /api/doc`, `GET /api/export.xlsx`.
 
-Material de organização pessoal. Não é recomendação de investimento.
+Dashboard para organização pessoal.

@@ -122,8 +122,31 @@ def _posicoes(pos, snaps, cfg):
     return saida
 
 
-def _realizado(trans):
-    """Custo medio por ticker, na ordem das datas. Venda sem compra registrada fica sem custo."""
+def _data_br(iso):
+    iso = str(iso or "")
+    return f"{iso[8:10]}/{iso[5:7]}/{iso[0:4]}" if len(iso) >= 10 and iso[4] == "-" else iso
+
+
+def _custo_da_posicao(pos, ticker, data_venda, qtd):
+    """Preco medio que posicoes.csv registra para o papel, no snapshot mais recente ate a data da
+    venda em que ele aparece com quantidade (>= a vendida) e preco medio. So entra quando
+    transacoes.csv nao tem a compra. Devolve (data do snapshot, preco medio) ou None."""
+    achado = None
+    for r in pos:
+        if (r.get("ticker") or "").strip() != ticker or r.get("data_snapshot", "") > data_venda:
+            continue
+        q, pm = opt(r.get("quantidade")), opt(r.get("preco_medio"))
+        if q is None or pm is None or q + 1e-9 < qtd:
+            continue
+        if achado is None or r["data_snapshot"] >= achado[0]:
+            achado = (r["data_snapshot"], pm)
+    return achado
+
+
+def _realizado(trans, pos):
+    """Resultado das vendas. Custo: 1) custo medio das compras de transacoes.csv, na ordem das
+    datas; 2) na falta delas, o preco medio registrado em posicoes.csv. Sem nenhum dos dois, a
+    venda fica em sem_custo e nao entra no total."""
     carteira, itens, sem_custo, ir = {}, [], [], 0.0
     for t in sorted(trans, key=lambda x: x.get("data", "")):
         ir += num(t.get("ir_brl"))
@@ -139,9 +162,15 @@ def _realizado(trans):
             if c["q"] + 1e-9 >= q:
                 medio = c["custo"] / c["q"]
                 itens.append({"data": t["data"], "ticker": tk, "quantidade": q, "venda": v,
-                              "custo": medio * q, "resultado": v - medio * q})
+                              "custo": medio * q, "resultado": v - medio * q, "base": "compras"})
                 c["q"] -= q
                 c["custo"] -= medio * q
+                continue
+            ref = _custo_da_posicao(pos, tk, t["data"], q)
+            if ref:
+                itens.append({"data": t["data"], "ticker": tk, "quantidade": q, "venda": v,
+                              "custo": ref[1] * q, "resultado": v - ref[1] * q, "base": "posicao",
+                              "pm": ref[1], "base_data": ref[0]})
             else:
                 sem_custo.append({"data": t["data"], "ativo": t.get("ativo") or tk, "venda": v})
     return {"itens": itens, "sem_custo": sem_custo, "ir_pago": ir,
@@ -295,15 +324,18 @@ def build(tables, params, cfg, hoje=None):
     sem_resultado = [p["ativo"] for p in posicoes
                      if p["metodo"] is None and p["tipo"] != "Conta" and p["valor"]]
     if sem_resultado:
-        faltando.append("Sem custo de aquisição no arquivo (resultado não calculado): "
-                        + "; ".join(sem_resultado) + ".")
+        faltando.append("Sem lucro calculado por falta de custo de aquisição no arquivo: "
+                        + "; ".join(sem_resultado) + ". Como resolver: informar quantidade e preço "
+                        "médio na linha da posição em posicoes.csv.")
     desde = sorted({p["desde"] for p in posicoes if p["desde"]})
 
-    realizado = _realizado(tables["transacoes"])
+    realizado = _realizado(tables["transacoes"], pos)
     if realizado["sem_custo"]:
-        faltando.append("Vendas sem compra registrada em transacoes.csv (resultado realizado não "
-                        "calculado): " + "; ".join(f"{s['ativo']} em {s['data']}"
-                                                   for s in realizado["sem_custo"]) + ".")
+        faltando.append("Vendas sem resultado calculado, por falta de custo (nem compra em "
+                        "transacoes.csv, nem preço médio em posicoes.csv): "
+                        + "; ".join(f"{x['ativo']} em {_data_br(x['data'])}"
+                                    for x in realizado["sem_custo"])
+                        + ". Como resolver: lançar a compra em transacoes.csv.")
 
     evolucao = []
     for s in snaps:

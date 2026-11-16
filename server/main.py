@@ -5,14 +5,16 @@ main.py - API local e servidor do frontend do Dashboard Financeiro.
 Uso:  python -m uvicorn server.main:app --host 127.0.0.1 --port 8000
 """
 import io
+import json
 import os
 import threading
 import webbrowser
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import Body, FastAPI, Query
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import metrics, store
@@ -37,17 +39,29 @@ async def store_error(_req, exc):
 
 
 @app.middleware("http")
-async def no_cache(request, call_next):
+async def cabecalhos_de_cache(request, call_next):
     resp = await call_next(request)
-    resp.headers["Cache-Control"] = "no-store"
+    # API sempre fresca; arquivos do site revalidam pelo ETag (resposta 304, sem baixar de novo)
+    resp.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "no-cache"
     return resp
 
 
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+# O painel so e recalculado quando algum arquivo da pasta, a configuracao ou o dia mudam.
+_CACHE = {"chave": None, "dados": None, "json": None}
+
+
 def _payload(cfg):
+    fp = store.fingerprint(cfg)
+    chave = (fp, date.today().isoformat(), json.dumps(cfg, sort_keys=True, default=str))
+    if _CACHE["chave"] == chave:
+        return _CACHE["dados"]
     tables = {n: store.read_table(n, cfg)[1] for n in store.TABLES}
     data = metrics.build(tables, store.read_parameters(cfg), cfg)
-    data["fingerprint"] = store.fingerprint(cfg)
+    data["fingerprint"] = fp
     data["pasta"] = store.describe_dir(store.data_dir(cfg))
+    _CACHE.update(chave=chave, dados=data, json=None)
     return data
 
 
@@ -79,7 +93,10 @@ def state():
 
 @app.get("/api/dashboard")
 def dashboard():
-    return _payload(store.load_config())
+    dados = _payload(store.load_config())
+    if _CACHE["json"] is None or _CACHE["dados"] is not dados:
+        _CACHE["json"] = json.dumps(dados, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return Response(_CACHE["json"], media_type="application/json")
 
 
 @app.get("/api/schema")

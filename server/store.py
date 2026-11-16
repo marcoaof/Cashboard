@@ -39,7 +39,7 @@ DEFAULTS = {
     "frozen_paths": [],
     "parameters": {},
     "simulator": {"real_rates": [0.03, 0.05, 0.07], "years": 20},
-    "disclaimer": "Material de organização pessoal. Não é recomendação de investimento.",
+    "disclaimer": "Dashboard para organização pessoal.",
 }
 
 # Esquema das tabelas. A ordem das colunas e a do arquivo.
