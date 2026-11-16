@@ -294,7 +294,7 @@ function vGeral(d) {
     tCusto ? kpi("Lucro até agora", comSinal(r.sobre_custo), `${pctSinal(r.custo_total ? r.sobre_custo / r.custo_total : null)} sobre o que você investiu`, sinal(r.sobre_custo), `${DICAS.lucro} Entram na conta: ${tCusto}.`)
       : kpi("Lucro até agora", "n/d", "Informe quanto você investiu para ver o lucro", "", DICAS.lucro),
     !tObs ? "" : kpi(`Rendeu desde ${dt(r.observado_desde)}`, comSinal(r.observado), esc(tObs), sinal(r.observado), DICAS.rendeu),
-    kpi("Rendimentos recebidos", brl(d.passiva.total_12m), d.passiva.total_12m ? `Dividendos e juros em ${plural(d.passiva.n_meses, "mês", "meses")}` : "Nenhum rendimento lançado", "", "Entradas lançadas na aba Gastos com a categoria Rendimentos."),
+    kpi("Rendimentos recebidos", brl(d.passiva.total_12m), d.passiva.total_12m ? `Dividendos e juros ${d.passiva.n_meses === 1 ? "no último mês" : `nos últimos ${d.passiva.n_meses} meses`}` : "Nenhum rendimento lançado", "", "Entradas lançadas na aba Gastos com a categoria Rendimentos."),
     kGastos,
     kpi("Reserva de emergência", brl(res.atual), reserva, "", res.meses ? `Meses de gastos: a reserva dividida pela média dos seus gastos nos últimos ${plural(res.n_meses_media, "mês fechado", "meses fechados")}.` : ""),
   ].join("");
@@ -330,7 +330,7 @@ const PARTES = [["Investido", "investido"], ["Em conta, a investir", "caixa"], [
 function gEvolucao(id, d) {
   chart(id, {
     legend: {}, xAxis: { type: "category", data: d.evolucao.map((e) => dt(e.data).slice(0, 5)) }, yAxis: eixoBRL,
-    series: PARTES.filter(([, k]) => d.evolucao.some((e) => e[k] > 0)).map(([nome, k]) => barra({ name: nome, stack: "t", data: d.evolucao.map((e) => +e[k].toFixed(2)), itemStyle: { color: SERIES[PARTES.findIndex((p) => p[1] === k)], borderColor: SURFACE, borderWidth: 1 } })),
+    series: PARTES.filter(([, k]) => d.evolucao.some((e) => e[k] > 0.005)).map(([nome, k]) => barra({ name: nome, stack: "t", data: d.evolucao.map((e) => +e[k].toFixed(2)), itemStyle: { color: SERIES[PARTES.findIndex((p) => p[1] === k)], borderColor: SURFACE, borderWidth: 1 } })),
   });
 }
 function gTipos(id, d) {
@@ -569,7 +569,10 @@ function vGestao(d) {
   if (!S.linhas) { api("/api/table/" + S.tabela).then((t) => { S.linhas = t; desenhar(); }).catch((e) => toast(e.message, true)); }
   const t = S.linhas || { columns: [], rows: [] };
   const busca = S.busca.toLowerCase();
-  const rows = [...t.rows].reverse().filter((r) => !busca || t.columns.some((c) => String(r[c]).toLowerCase().includes(busca)));
+  // mais recente primeiro: pela data do lancamento e, no empate, pela ordem em que foi gravado
+  const colData = (sc.columns.find((c) => c.type === "date" || c.type === "month") || {}).name;
+  const rows = [...t.rows].reverse().sort((a, b) => (colData ? String(b[colData]).localeCompare(String(a[colData])) : 0))
+    .filter((r) => !busca || t.columns.some((c) => String(r[c]).toLowerCase().includes(busca)));
   // so aparecem as colunas que tem algum valor, para a tabela nao ficar cheia de vazios
   const visiveis = t.columns.filter((c) => sc.required.includes(c) || t.rows.some((r) => r[c]));
   const col = (c) => cols[c] || { name: c, type: "text", label: c, options: {} };

@@ -360,7 +360,7 @@ async function abrirAtualizar() {
       if (!it.fora && ok) soma += x.valor;
       const t = $(`u-t-${i}`);
       if (it.bolsa) t.textContent = ok ? nf.format(x.valor) : "";
-      else if (it.comCusto) { const l = ok && x.ap != null && !isNaN(x.ap) ? x.valor - x.ap : null; t.textContent = l == null ? "" : (l > 0 ? "+" : "") + nf.format(l); t.className = l == null ? "" : sinal(l); }
+      else if (it.comCusto) { const l = ok && x.ap != null && !isNaN(x.ap) ? x.valor - x.ap : null; t.textContent = l == null ? "" : (l > 0 ? "+" : "") + nf.format(l); t.className = l == null ? "" : sinal(l); t.previousElementSibling.hidden = l == null; }
     });
     $("u-soma").textContent = `Total: ${nf.format(soma)}. Antes: ${nf.format(d.blocos.total)}.`;
   };
@@ -533,8 +533,13 @@ function abrirImportar(texto = "") {
       if (r.gravado) { fecharModal(); toast(`${plural(r.total, "linha importada", "linhas importadas")}.`); S.mes = null; return carregar(true); }
       const erros = r.erros.length ? `<div class="banner aberto"><b>${plural(r.erros.length, "linha precisa", "linhas precisam")} de ajuste. Nada foi gravado.</b><ul>${r.erros.map((e) => `<li>Linha ${e.linha}${e.tabela ? ` (${esc(e.tabela)})` : ""}: ${esc(e.erro)}</li>`).join("")}</ul><p class="small">Corrija no texto acima ou mande estas mensagens para a IA arrumar.</p></div>` : "";
       const avisos = r.avisos.map((a) => `<p class="note">${esc(a)}</p>`).join("");
-      const tabs = r.tabelas.map((t) => `<h3>${esc(t.label)}: ${plural(t.novas, "linha nova", "linhas novas")}${t.repetidas ? `, ${plural(t.repetidas, "repetida ignorada", "repetidas ignoradas")}` : ""}</h3>
-        ${t.amostra.length ? tabela(t.colunas.map((c) => ({ t: esc(t.rotulos[c] || c) })), t.amostra.map((l) => t.colunas.map((c) => esc(l[c])))) + (t.novas > t.amostra.length ? `<p class="muted small">e mais ${t.novas - t.amostra.length}.</p>` : "") : ""}`).join("");
+      // previa do jeito que a pessoa le (data, reais), sem as colunas que o painel preenche sozinho
+      const ver = (c, v) => !c || v === "" ? esc(v) : c.type === "date" ? dt(v) : c.type === "month" ? mes(v) : c.type === "money" && !isNaN(Number(v)) ? nf.format(Number(v)) : c.type === "select" ? esc(semParenteses(c.options[v] || v)) : esc(v);
+      const tabs = r.tabelas.map((t) => {
+        const cols = colDe(t.tabela), mostrar = t.colunas.filter((c) => !(c === "mes" && t.tabela === "despesas") && !(cols[c] && cols[c].advanced && S.schema[t.tabela].defaults[c]));
+        return `<h3>${esc(t.label)}: ${plural(t.novas, "linha nova", "linhas novas")}${t.repetidas ? `, ${plural(t.repetidas, "repetida ignorada", "repetidas ignoradas")}` : ""}</h3>
+        ${t.amostra.length ? tabela(mostrar.map((c) => ({ t: esc(t.rotulos[c] || c), n: cols[c] && ["money", "number", "fraction"].includes(cols[c].type) })), t.amostra.map((l) => mostrar.map((c) => ver(cols[c], l[c])))) + (t.novas > t.amostra.length ? `<p class="muted small">e mais ${t.novas - t.amostra.length}.</p>` : "") : ""}`;
+      }).join("");
       $("imp-res").innerHTML = erros + avisos + tabs + (!r.erros.length && !r.total ? '<p class="note">Nada novo para importar: tudo isso já está no painel.</p>' : "");
       conferido = !r.erros.length && r.total > 0;
       $("imp-ok").textContent = conferido ? `Importar ${plural(r.total, "linha", "linhas")}` : "Conferir";
@@ -617,16 +622,29 @@ async function abrirConfig() {
 }
 
 /* ---------------------------------------------------------------- acoes dos botoes (data-acao) */
+/* Nos dados de exemplo, quem tenta registrar algo e avisado uma vez: o que entrar ali se mistura
+   com os dados inventados. O caminho certo e "Comecar com meus dados". */
+let avisouExemplo = false;
+function grava(fn) {
+  return () => {
+    if (!S.d || !S.d.exemplo || avisouExemplo) return fn();
+    abrirModal(`<h2>Estes são dados de exemplo</h2>
+      <p>O que você registrar agora se mistura com os dados inventados. Para usar de verdade, comece com uma pasta só sua.</p>
+      <div class="row end botoes"><button class="btn" id="ex-seguir">Só testar no exemplo</button><button class="btn primary" id="ex-meus">Começar com meus dados</button></div>`);
+    $("ex-seguir").onclick = () => { avisouExemplo = true; fecharModal(); fn(); };
+    $("ex-meus").onclick = () => abrirComecar();
+  };
+}
 const ACOES = {
-  adicionar: () => abrirAdicionar(),
-  posicao: () => abrirInvestimento(),
-  atualizar: () => abrirAtualizar(),
-  despesas: () => abrirForm("despesas"),
-  transacoes: () => abrirForm("transacoes"),
-  aportes: () => abrirForm("aportes"),
-  vencimentos: () => abrirForm("vencimentos"),
-  metas: () => abrirMetas(),
-  importar: () => abrirImportar(),
+  adicionar: grava(() => abrirAdicionar()),
+  posicao: grava(() => abrirInvestimento()),
+  atualizar: grava(() => abrirAtualizar()),
+  despesas: grava(() => abrirForm("despesas")),
+  transacoes: grava(() => abrirForm("transacoes")),
+  aportes: grava(() => abrirForm("aportes")),
+  vencimentos: grava(() => abrirForm("vencimentos")),
+  metas: grava(() => abrirMetas()),
+  importar: grava(() => abrirImportar()),
   ia: () => abrirIA(),
   meusdados: () => abrirComecar(),
   exemplo: () => usarExemplo(),

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Dashboard Financeiro
+title Cashboard
 
 if not exist ".venv\Scripts\python.exe" (
   echo Criando ambiente virtual em .venv ...
