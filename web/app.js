@@ -42,14 +42,19 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const nf = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const brl = (v) => v == null ? "n/d" : S.priv ? "R$ •••••" : nf.format(v);
-const brlAbbr = (v) => S.priv ? "•••" : Math.abs(v) >= 1e6 ? (v / 1e6).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mi"
-  : Math.abs(v) >= 1e3 ? (v / 1e3).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " mil" : v.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+const brlAbbr = (v) => {
+  if (S.priv) return "•••";
+  const a = Math.abs(v), f = (x, casas) => x.toLocaleString("pt-BR", { maximumFractionDigits: casas });
+  if (a >= 1e6) return f(v / 1e6, 1) + " mi";
+  if (a >= 1e3) return f(v / 1e3, 1) + " mil";
+  return f(v, a < 10 ? 2 : a < 100 ? 1 : 0);   // valores pequenos mantem as casas, senao o eixo repete "1, 1, 2, 2"
+};
 const pct = (v, casas = 2) => v == null ? "n/d" : (v * 100).toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas }) + "%";
 const qtd = (v) => v == null ? "" : S.priv ? "•••" : v.toLocaleString("pt-BR", { maximumFractionDigits: 6 });
 const dt = (s) => s && /^\d{4}-\d{2}-\d{2}/.test(s) ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : /^\d{4}-\d{2}$/.test(s || "") ? `${s.slice(5)}/${s.slice(0, 4)}` : (s || "");
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const mes = (s) => s && /^\d{4}-\d{2}$/.test(s) ? `${MESES[+s.slice(5) - 1]}/${s.slice(0, 4)}` : (s || "");
-const sinal = (v) => v == null ? "" : v >= 0 ? "pos" : "neg";
+const sinal = (v) => v == null || Math.abs(v) < 0.005 ? "" : v > 0 ? "pos" : "neg";
 const comSinal = (v) => v == null ? "n/d" : (v > 0 && !S.priv ? "+" : "") + brl(v);
 
 /* ---------------------------------------------------------------- API */
@@ -137,13 +142,29 @@ function tabela(cab, linhas, pe) {
   return `<div class="scroll"><table><thead><tr>${th}</tr></thead><tbody>${tr || `<tr><td colspan="${cab.length}" class="muted">Sem dados.</td></tr>`}</tbody>${tf}</table></div>`;
 }
 const filtradas = () => S.d.posicoes.filter((p) => (!S.classe || p.classe === S.classe) && (!S.tipo || p.tipo === S.tipo));
+/* Soma as posicoes por tipo de produto. Usada na aba Lucros, que respeita o filtro. */
+function porTipo(ps) {
+  const m = {};
+  ps.forEach((p) => {
+    const t = (m[p.tipo] ||= { tipo: p.tipo, valor: 0, custo: 0, sobre_custo: 0, observado: 0, n: 0, n_custo: 0, n_observado: 0, n_sem_dado: 0 });
+    t.valor += p.valor; t.n++;
+    if (p.metodo === "custo") { t.sobre_custo += p.resultado; t.custo += p.custo; t.n_custo++; }
+    else if (p.metodo === "observado") { t.observado += p.resultado; t.n_observado++; }
+    else t.n_sem_dado++;
+  });
+  return Object.values(m).sort((a, b) => b.valor - a.valor);
+}
+const lista = (xs) => xs.length > 1 ? xs.slice(0, -1).join(", ") + " e " + xs[xs.length - 1] : xs.join("");
+const semCalculo = (t) => !t.n_sem_dado ? "" : t.tipo === "Conta" ? '<span class="muted">não se aplica</span>' : `${t.n_sem_dado} de ${t.n} sem custo`;
+const parcial = (d, m) => m === d.hoje.slice(0, 7);
 const metodo = (p) => p.metodo === "custo" ? "sobre o custo" : p.metodo === "observado" ? `rendimento desde ${dt(p.desde)}` : "sem custo no arquivo";
 
 /* ---------------------------------------------------------------- aba: visao geral */
 function vGeral(d) {
   const b = d.blocos, r = d.resultado, ev = d.evolucao, ant = ev.length > 1 ? ev[ev.length - 2] : null;
   const g = d.gastos[d.gastos.length - 1];
-  const delta = ant ? `<span class="${sinal(b.total - ant.total)}">${comSinal(b.total - ant.total)}</span> desde a posição de ${dt(ant.data)}` : "Primeira posição registrada";
+  const delta = ant ? `Variação de <b>${comSinal(b.total - ant.total)}</b> desde a posição de ${dt(ant.data)}. Inclui dinheiro novo, não é só rendimento.` : "Primeira posição registrada.";
+  const tCusto = lista(r.por_tipo.filter((t) => t.n_custo).map((t) => t.tipo)), tObs = lista(r.por_tipo.filter((t) => t.n_observado).map((t) => t.tipo));
   const res = d.reserva;
   // Faixa de composicao: mesmas partes e mesmas cores do grafico de evolucao.
   const partes = PARTES.map(([nome, k], i) => ({ nome, v: b[k], cor: SERIES[i] })).filter((p) => p.v > 0);
@@ -155,19 +176,22 @@ function vGeral(d) {
     </section>`;
   const kp = [
     kpi("Carteira de investimento", brl(b.base), `Base da alocação. Caixa ainda não investido: ${pct(b.base ? b.caixa / b.base : 0)}`),
-    kpi("Lucro não realizado", comSinal(r.sobre_custo), r.custo_total ? `${pct(r.sobre_custo / r.custo_total)} sobre custo de ${brl(r.custo_total)}` : "Nenhuma posição com custo no arquivo", sinal(r.sobre_custo)),
-    kpi("Rendimento observado", comSinal(r.observado), r.observado_desde ? `Títulos sem custo no arquivo, desde ${dt(r.observado_desde)}` : "Sem títulos nessa condição", sinal(r.observado)),
-    kpi("Renda passiva", brl(d.passiva.total_12m), `Recebida nos últimos ${d.passiva.n_meses} meses com lançamento`),
-    g ? kpi(`Gastos de ${mes(g.mes)}`, brl(g.gastos), `Renda ${brl(g.renda)} · poupança ${pct(g.taxa)}`) : kpi("Gastos do mês", "n/d", "Sem lançamentos"),
-    kpi("Reserva", brl(res.atual), res.meta ? `<div class="prog"><i style="width:${Math.min(100, res.atual / res.meta * 100)}%"></i></div>${pct(res.atual / res.meta, 0)} da meta de ${brl(res.meta)}` : "Meta não cadastrada"),
+    kpi(tCusto ? `Lucro não realizado: ${esc(tCusto)}` : "Lucro não realizado", tCusto ? comSinal(r.sobre_custo) : "n/d",
+      tCusto ? `${pct(r.sobre_custo / r.custo_total)} sobre o custo de ${brl(r.custo_total)}. Só entra quem tem preço médio.` : "Nenhuma posição com custo no arquivo", tCusto ? sinal(r.sobre_custo) : ""),
+    kpi(tObs ? `Rendimento: ${esc(tObs)}` : "Rendimento observado", tObs ? comSinal(r.observado) : "n/d",
+      tObs ? `Variação desde ${dt(r.observado_desde)}, primeira posição no arquivo. Não é o lucro desde a aplicação.` : "Sem títulos nessa condição", tObs ? sinal(r.observado) : ""),
+    kpi("Renda passiva recebida", brl(d.passiva.total_12m), `Rendimentos lançados nos últimos ${d.passiva.n_meses} meses`),
+    g ? kpi(`Gastos de ${mes(g.mes)}${parcial(d, g.mes) ? " (parcial)" : ""}`, brl(g.gastos), parcial(d, g.mes) ? `Mês em andamento. Renda até aqui: ${brl(g.renda)}` : `Renda ${brl(g.renda)} · poupança ${pct(g.taxa)}`) : kpi("Gastos do mês", "n/d", "Sem lançamentos"),
+    kpi("Reserva de emergência", brl(res.atual), !res.meta ? "Meta não cadastrada" : `<div class="prog"><i style="width:${Math.min(100, res.atual / res.meta * 100)}%"></i></div>`
+      + (res.atual >= res.meta ? `Meta de ${brl(res.meta)} atingida, com ${brl(res.atual - res.meta)} a mais` : `${pct(res.atual / res.meta, 0)} da meta de ${brl(res.meta)}. Faltam ${brl(res.meta - res.atual)}`)),
   ].join("");
   const avisos = [];
   if (d.alertas_posicao) avisos.push(`${d.alertas_posicao} de ${d.posicoes.length} posições têm valor estimado, carregado ou por premissa (veja a coluna Obs em Lucros).`);
   d.faltando.forEach((f) => avisos.push(f));
   const banner = avisos.length ? `<details class="banner"><summary>${avisos.length} ponto(s) de atenção nos dados</summary><ul>${avisos.map((a) => `<li>${esc(a)}</li>`).join("")}</ul></details>` : "";
-  const tipos = tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "Rendimento observado", n: 1 }, { t: "Sem dado" }],
-    r.por_tipo.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? `<span class="${sinal(t.sobre_custo)}">${comSinal(t.sobre_custo)}</span>` : '<span class="muted">n/d</span>',
-      t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : '<span class="muted">n/d</span>', t.n_sem_dado ? `${t.n_sem_dado} de ${t.n}` : ""]),
+  const tipos = tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "Rendimento observado", n: 1 }, { t: "Sem cálculo" }],
+    r.por_tipo.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? `<span class="${sinal(t.sobre_custo)}">${comSinal(t.sobre_custo)}</span>` : "",
+      t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : "", `<span class="small">${semCalculo(t)}</span>`]),
     ["Total", brl(b.total), comSinal(r.sobre_custo), comSinal(r.observado), ""]);
   const ordem = d.ordem ? tabela([{ t: "Classe" }, { t: "Instrumento" }, { t: "Valor", n: 1 }], d.ordem.itens.map((i) => [esc(i.classe), esc(i.instrumento), brl(i.valor)]), ["Total", "", brl(d.ordem.total)])
     + `<p class="muted small">Fonte: ${esc(d.ordem.fonte)}</p>` : '<p class="muted">Nenhum aporte planejado em aportes.csv.</p>';
@@ -180,7 +204,7 @@ function vGeral(d) {
       <section class="grid cols">
         ${card("Evolução do patrimônio", "Uma barra por posição registrada (snapshot), dividida por bloco.", '<div id="c-evo" class="chart"></div>')}
         ${card("Patrimônio por tipo de produto", "Valor de cada tipo na posição atual.", '<div id="c-tipo" class="chart"></div>')}
-        ${card("Lucros por tipo de produto", "Sobre custo: valor menos quantidade vezes preço médio. Observado: variação desde a primeira posição do título.", tipos)}
+        ${card("Lucros por tipo de produto", "Duas medidas que não se somam. Sobre custo: valor menos quantidade vezes preço médio. Observado: variação desde a primeira posição do título no arquivo. Em branco: a medida não existe para o tipo.", tipos)}
         ${card(d.ordem ? `Ordem planejada de ${mes(d.ordem.mes)}` : "Ordem do mês", "Último plano registrado em aportes.csv. Planejado não é executado.", ordem)}
         ${card("Próximos eventos", "Vencimentos e datas em aberto, de hoje em diante.", eventos)}
         ${card("Indicadores de referência", "Último valor registrado em indicadores.csv (passe o mouse no nome para ver a fonte). Períodos diferentes do da carteira: não compare direto.", ind)}
@@ -225,11 +249,13 @@ function vAlocacao(d) {
         <div class="bar" style="width:${w(l.pct)};background:${cor(l.classe, "classe")}"></div>
         ${l.alvo != null && l.classe !== d.config.cash_class ? `<div class="alvo" style="left:${w(l.alvo)}"></div>` : ""}
       </div>
-      <div class="num small">${pct(l.pct)} <span class="muted">alvo ${pct(l.alvo, 0)}</span><br>${tag[l.situacao] || ""}</div></div>`).join("");
-  const tab = tabela([{ t: "Classe" }, { t: "Valor", n: 1 }, { t: "Atual", n: 1 }, { t: "Alvo", n: 1 }, { t: "Banda", n: 1 }, { t: "Desvio", n: 1 }, { t: "Falta para o alvo", n: 1 }, { t: "Instrumento" }],
-    a.linhas.map((l) => [esc(l.classe), brl(l.valor), pct(l.pct), pct(l.alvo), l.alvo == null ? "" : `${pct(l.min, 0)} a ${pct(l.max, 0)}`,
+      <div class="num small">${pct(l.pct)} ${l.classe === d.config.cash_class ? "" : `<span class="muted">alvo ${pct(l.alvo, 0)}</span>`}<br>${l.classe === d.config.cash_class ? '<span class="tag">dinheiro a investir</span>' : tag[l.situacao] || ""}</div></div>`).join("");
+  const ehCaixa = (l) => l.classe === d.config.cash_class;
+  const distancia = (l) => l.falta == null ? "" : ehCaixa(l) ? '<span class="muted">a investir</span>' : Math.abs(l.falta) < 0.005 ? "no alvo" : l.falta > 0 ? `faltam ${brl(l.falta)}` : `<span class="muted">${brl(-l.falta)} acima</span>`;
+  const tab = tabela([{ t: "Classe" }, { t: "Valor", n: 1 }, { t: "Atual", n: 1 }, { t: "Alvo", n: 1 }, { t: "Banda", n: 1 }, { t: "Desvio", n: 1 }, { t: "Distância do alvo", n: 1 }, { t: "Instrumento" }],
+    a.linhas.map((l) => [esc(l.classe), brl(l.valor), pct(l.pct), ehCaixa(l) ? "" : pct(l.alvo), l.alvo == null || ehCaixa(l) ? "" : `${pct(l.min, 0)} a ${pct(l.max, 0)}`,
       l.alvo == null || !l.situacao ? "" : `<span class="${l.situacao === "ok" ? "" : "neg"}">${((l.pct - l.alvo) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2, signDisplay: "always" })} p.p.</span>`,
-      l.falta == null ? "" : comSinal(l.falta), `<span class="small muted">${esc(l.instrumento)}</span>`]),
+      distancia(l), `<span class="small muted">${esc(l.instrumento)}</span>`]),
     ["Total", brl(d.blocos.base), pct(a.soma_pct), pct(a.soma_alvo), "", "", "", ""]);
   if (S.aporte == null) S.aporte = +(Math.max(0, d.blocos.caixa - d.reserva.para_reserva) || d.aporte_mensal || 0).toFixed(2);
   const sug = sugestao(d, S.aporte), tot = sug.reduce((s, g) => s + g.valor, 0);
@@ -239,8 +265,8 @@ function vAlocacao(d) {
   return {
     html: `<section class="grid cols">
       ${card("Alocação atual contra a meta", `Metas ${a.versao ? `versão ${esc(a.versao)}, vigente desde ${dt(a.vigencia)}` : "não cadastradas"}. Percentuais sobre a carteira de investimento (${brl(d.blocos.base)}), sem reserva. Faixa clara: banda. Traço: alvo.`, barras, "wide")}
-      ${card("Detalhe por classe", `"Falta para o alvo" usa a base sem o caixa destinado à reserva (${brl(d.reserva.para_reserva)}).`, tab, "wide")}
-      ${card("Onde aportar", "Cálculo mecânico: distribui o valor pelas classes abaixo do alvo, na proporção da distância. Não é ordem nem recomendação.",
+      ${card("Detalhe por classe", `Desvio: atual menos alvo, em pontos percentuais. Distância do alvo: quanto falta ou sobra em reais${d.reserva.para_reserva ? `, já sem os ${brl(d.reserva.para_reserva)} do caixa que vão completar a reserva` : ""}.`, tab, "wide")}
+      ${card("Simulação: onde aportar", `Conta mecânica: distribui o valor pelas classes abaixo do alvo, na proporção da distância. Não é ordem nem recomendação${d.ordem ? `, e pode diferir da ordem planejada de ${mes(d.ordem.mes)} (Visão geral), que segue as regras da política` : ""}.`,
         `<div class="form noprint" style="margin-bottom:12px"><div><label for="i-aporte">Valor a aportar (R$)</label><input id="i-aporte" type="number" step="0.01" min="0" value="${S.aporte}"></div></div>${sugTab}`)}
       ${card("Vencimentos da renda fixa", "Títulos da posição atual com data de vencimento.", tabela([{ t: "Vencimento" }, { t: "Ativo" }, { t: "Taxa" }, { t: "Valor", n: 1 }],
         d.escada.map((e) => [dt(e.data), esc(e.ativo), esc(e.indexador), brl(e.valor)])))}
@@ -251,7 +277,10 @@ function vAlocacao(d) {
 
 /* ---------------------------------------------------------------- aba: lucros */
 function vResultado(d) {
-  const r = d.resultado, ps = filtradas().filter((p) => p.valor);
+  const r = d.resultado, todas = d.posicoes.filter((p) => p.valor), ps = filtradas().filter((p) => p.valor);
+  const filtrando = !!(S.classe || S.tipo), rotulo = [S.tipo, S.classe].filter(Boolean).join(" · ");
+  const tipos = porTipo(ps), soma = (k) => tipos.reduce((t, x) => t + x[k], 0);
+  const custo = soma("custo"), sobre = soma("sobre_custo"), obs = soma("observado"), temCusto = soma("n_custo") > 0, temObs = soma("n_observado") > 0;
   const com = ps.filter((p) => p.resultado != null).sort((a, b) => a.resultado - b.resultado);
   const linhas = [...ps].sort((a, b) => b.valor - a.valor).map((p) => [
     `${esc(p.ativo)}${p.alerta ? ` <span class="tag warn" title="${esc(p.obs)}">estimado</span>` : ""}<br><span class="muted small">${esc(p.indexador)}${p.vencimento ? ` · vence ${dt(p.vencimento)}` : ""}</span>`,
@@ -260,36 +289,37 @@ function vResultado(d) {
     p.resultado_pct == null ? "" : `<span class="${sinal(p.resultado_pct)}">${pct(p.resultado_pct)}</span>`, `<span class="small muted">${metodo(p)}</span>`]);
   const unicos = (k) => [...new Set(d.posicoes.map((p) => p[k]))].sort();
   const sel = (id, vals, atual, rot) => `<select id="${id}" aria-label="${rot}"><option value="">${rot}</option>${vals.map((v) => `<option ${v === atual ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`;
-  const filtros = `<div class="filters noprint"><span class="eyebrow">Filtrar posições</span>${sel("f-classe", unicos("classe"), S.classe, "Todas as classes")}${sel("f-tipo", unicos("tipo"), S.tipo, "Todos os tipos")}
-    ${S.classe || S.tipo ? `<button class="btn" id="f-limpar">Limpar filtros</button><span class="muted small">${ps.length} de ${d.posicoes.filter((p) => p.valor).length} posições. Vale para o gráfico e para a tabela de posições.</span>` : ""}</div>`;
+  const filtros = `<div class="filters noprint"><span class="eyebrow">Filtrar a aba</span>${sel("f-classe", unicos("classe"), S.classe, "Todas as classes")}${sel("f-tipo", unicos("tipo"), S.tipo, "Todos os tipos")}
+    ${filtrando ? `<button class="btn" id="f-limpar">Limpar filtros</button><span class="muted small">Mostrando ${ps.length} de ${todas.length} posições. Totais, gráfico e tabelas abaixo seguem o filtro.</span>` : `<span class="muted small">${todas.length} posições</span>`}</div>`;
   const real = r.realizado;
   const realTab = tabela([{ t: "Data" }, { t: "Ticker" }, { t: "Qtd", n: 1 }, { t: "Venda", n: 1 }, { t: "Custo", n: 1 }, { t: "Resultado", n: 1 }],
     real.itens.map((i) => [dt(i.data), esc(i.ticker), qtd(i.quantidade), brl(i.venda), brl(i.custo), `<span class="${sinal(i.resultado)}">${comSinal(i.resultado)}</span>`]),
     ["Total", "", "", "", "", comSinal(real.total)]);
   const semCusto = real.sem_custo.length ? `<p class="small muted">Vendas sem compra registrada (resultado não calculado): ${real.sem_custo.map((s) => `${esc(s.ativo)} em ${dt(s.data)}, ${brl(s.venda)}`).join("; ")}.</p>` : "";
   return {
-    html: `<section class="kpis">
-        ${kpi("Lucro não realizado sobre custo", comSinal(r.sobre_custo), r.custo_total ? `${pct(r.sobre_custo / r.custo_total)} sobre ${brl(r.custo_total)}` : "", sinal(r.sobre_custo))}
-        ${kpi("Rendimento observado", comSinal(r.observado), r.observado_desde ? `desde ${dt(r.observado_desde)}; não é o lucro desde a aplicação` : "", sinal(r.observado))}
-        ${kpi("Resultado realizado", comSinal(real.total), `${real.itens.length} venda(s) com custo · ${real.sem_custo.length} sem custo`, sinal(real.total))}
-        ${kpi("IR retido registrado", brl(real.ir_pago), "Soma de ir_brl em transacoes.csv")}
+    html: `${filtros}<section class="kpis">
+        ${kpi(filtrando ? `Valor: ${esc(rotulo)}` : "Valor das posições", brl(soma("valor")), `${ps.length} posição(ões) em ${dt(d.snapshot)}`)}
+        ${kpi("Lucro não realizado sobre custo", temCusto ? comSinal(sobre) : "n/d", temCusto ? `${custo ? pct(sobre / custo) : ""} sobre o custo de ${brl(custo)} (${esc(lista(tipos.filter((t) => t.n_custo).map((t) => t.tipo)))})` : `Nenhuma posição com preço médio ${filtrando ? "neste filtro" : "no arquivo"}`, temCusto ? sinal(sobre) : "")}
+        ${kpi("Rendimento observado", temObs ? comSinal(obs) : "n/d", temObs ? `Desde ${dt(r.observado_desde)} (${esc(lista(tipos.filter((t) => t.n_observado).map((t) => t.tipo)))}). Não é o lucro desde a aplicação.` : `Nenhum título nessa condição ${filtrando ? "neste filtro" : ""}`, temObs ? sinal(obs) : "")}
+        ${filtrando ? "" : kpi("Resultado realizado", real.itens.length ? comSinal(real.total) : "n/d", real.itens.length ? `${real.itens.length} venda(s) com custo registrado` : `${real.sem_custo.length} venda(s) sem compra registrada: não dá para calcular`, real.itens.length ? sinal(real.total) : "")}
+        ${filtrando ? "" : kpi("IR retido registrado", brl(real.ir_pago), "Soma de ir_brl em transacoes.csv")}
       </section>
-      ${filtros}<section class="grid cols">
-        ${card("Resultado por posição", "Só posições com resultado calculável. Verde: ganho. Terracota: perda.", `<div id="c-res" class="chart" style="height:${Math.max(220, com.length * 34 + 40)}px"></div>`)}
-        ${card("Resultado por tipo de produto", "Soma das posições de cada tipo. Os dois métodos não se somam: medem períodos diferentes.",
-          tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Custo", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "%", n: 1 }, { t: "Rendimento observado", n: 1 }],
-            r.por_tipo.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? brl(t.custo) : "", t.n_custo ? `<span class="${sinal(t.sobre_custo)}">${comSinal(t.sobre_custo)}</span>` : '<span class="muted">n/d</span>',
-              t.n_custo && t.custo ? pct(t.sobre_custo / t.custo) : "", t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : '<span class="muted">n/d</span>'])))}
-        ${card("Posições", `Posição de ${dt(d.snapshot)}${S.classe || S.tipo ? ", com filtro aplicado" : ""}. Etiqueta "estimado": valor carregado, estimado ou por premissa (passe o mouse para ler a observação).`,
+      <section class="grid cols">
+        ${card("Resultado por posição", "Só posições com resultado calculável. Verde: ganho. Terracota: perda.", com.length ? `<div id="c-res" class="chart" style="height:${Math.max(180, com.length * 38 + 50)}px"></div>` : `<p class="muted">Nenhuma posição ${filtrando ? "deste filtro " : ""}tem resultado calculável: falta o custo de aquisição no arquivo.</p>`)}
+        ${card("Resultado por tipo de produto", "Soma das posições de cada tipo. As duas medidas não se somam: cobrem períodos diferentes. Em branco: a medida não existe para o tipo.",
+          tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Custo", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "%", n: 1 }, { t: "Rendimento observado", n: 1 }, { t: "Sem cálculo" }],
+            tipos.map((t) => [esc(t.tipo), brl(t.valor), t.n_custo ? brl(t.custo) : "", t.n_custo ? `<span class="${sinal(t.sobre_custo)}">${comSinal(t.sobre_custo)}</span>` : "",
+              t.n_custo && t.custo ? pct(t.sobre_custo / t.custo) : "", t.n_observado ? `<span class="${sinal(t.observado)}">${comSinal(t.observado)}</span>` : "", `<span class="small">${semCalculo(t)}</span>`])))}
+        ${card(filtrando ? `Posições: ${esc(rotulo)}` : "Posições", `Posição de ${dt(d.snapshot)}. Etiqueta "estimado": valor carregado, estimado ou por premissa (passe o mouse para ler a observação).`,
           tabela([{ t: "Ativo" }, { t: "Tipo" }, { t: "Classe" }, { t: "Qtd", n: 1 }, { t: "Preço médio", n: 1 }, { t: "Preço atual", n: 1 }, { t: "Valor", n: 1 }, { t: "Resultado", n: 1 }, { t: "%", n: 1 }, { t: "Método" }], linhas,
-            ["Total", "", "", "", "", "", brl(ps.reduce((s, p) => s + p.valor, 0)), "", "", ""]), "wide")}
-        ${card("Resultado realizado", "Venda menos custo médio das compras registradas em transacoes.csv.", realTab + semCusto, "wide")}
+            ["Total", "", "", "", "", "", brl(soma("valor")), "", "", ""]), "wide")}
+        ${card("Resultado realizado", `Venda menos custo médio das compras registradas em transacoes.csv.${filtrando ? " Este quadro não segue o filtro: mostra todas as vendas." : ""}`, realTab + semCusto, "wide")}
       </section>`,
     depois() {
       $("f-classe").onchange = (e) => { S.classe = e.target.value; desenhar(); };
       $("f-tipo").onchange = (e) => { S.tipo = e.target.value; desenhar(); };
       if ($("f-limpar")) $("f-limpar").onclick = () => { S.classe = ""; S.tipo = ""; desenhar(); };
-      chart("c-res", {
+      if (com.length) chart("c-res", {
         grid: { right: 24 }, xAxis: eixoBRL, yAxis: { type: "category", data: com.map((p) => p.ticker || p.ativo.slice(0, 26)), axisLabel: { color: INK2 } },
         tooltip: { formatter: (a) => { const p = com[a[0].dataIndex]; return `${esc(p.ativo)}<br><b>${comSinal(p.resultado)}</b> (${pct(p.resultado_pct)})<br>${metodo(p)}`; } },
         series: [barra({ data: com.map((p) => ({ value: +p.resultado.toFixed(2), itemStyle: { color: p.resultado >= 0 ? SERIES[0] : SERIES[3], borderRadius: p.resultado >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] } })) })],
@@ -316,6 +346,7 @@ function vGastos(d) {
         ${kpi("Sobra", comSinal(g.sobra), "Renda menos gastos", sinal(g.sobra))}
         ${kpi("Taxa de poupança", pct(g.taxa), "(renda − gastos) ÷ renda, no mês", sinal(g.taxa))}
       </section>
+      ${parcial(d, g.mes) ? `<p class="note">${mes(g.mes)} ainda está em andamento: os números vão só até o último lançamento (${dt(g.itens[g.itens.length - 1].data)}). Sobra e taxa de poupança mudam quando entrarem os gastos que faltam.</p>` : ""}
       <section class="grid cols">
         ${card("Renda e gastos por mês", "Gastos empilhados em fixo e variável, ao lado da renda.", '<div id="c-meses" class="chart"></div>')}
         ${card(`Gastos de ${mes(g.mes)} por categoria`, "Só saídas. Entradas ficam de fora.", `<div id="c-cats" class="chart" style="height:${Math.max(200, g.cats.length * 34 + 40)}px"></div>`)}
