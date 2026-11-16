@@ -119,7 +119,7 @@ async function carregar(silencioso) {
     S.linhas = null; S.docs = null;
     conexao(true);
     if (!silencioso) S.mes = null;
-    desenhar();
+    desenhar(true);
   } catch (e) {
     conexao(false);
     toast(e.message, true);
@@ -157,14 +157,43 @@ function linhasDaLegenda(option, largura) {
   itens.forEach((w) => { if (x > 0 && x + w > largura) { linhas++; x = w; } else x += w; });
   return linhas;
 }
+/* Animacao dos graficos sem pesar a tela:
+   - o grafico so e montado (e animado) quando chega perto da area visivel; o que esta la embaixo
+     nao gasta nada ate a pessoa rolar ate ele;
+   - anima ao abrir uma aba, ao chegar dado novo e ao trocar filtro ou mes. Redesenhos de bastidor
+     (tamanho da janela, tema, ocultar valores, digitar no simulador) entram sem animacao;
+   - curta (0,5 s) e desligada para quem pediu menos movimento no sistema. */
+const poucoMovimento = window.matchMedia ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+let animarGraficos = false;   // desenhar(true) liga para os graficos daquele desenho
+const pendentes = new Map();  // elemento -> funcao que monta o grafico quando ele aparecer
+const observador = "IntersectionObserver" in window
+  ? new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && montarPendente(e.target)), { rootMargin: "150px" }) : null;
+function montarPendente(el, semAnimar) {
+  const montar = pendentes.get(el);
+  if (!montar) return;
+  pendentes.delete(el); observador.unobserve(el);
+  montar(semAnimar);
+}
+function esquecerPendentes() { if (observador) pendentes.forEach((_, el) => observador.unobserve(el)); pendentes.clear(); }
+/* Para imprimir, tudo precisa estar na pagina: monta de uma vez o que faltava, sem animar. */
+window.addEventListener("beforeprint", () => [...pendentes.keys()].forEach((el) => montarPendente(el, true)));
 function chart(id, option) {
   const el = $(id);
   if (!el) return;
   if (!window.echarts) { el.innerHTML = '<p class="muted small">Sem internet, os gráficos não aparecem. Os números e as tabelas continuam certos.</p>'; return; }
+  const animar = animarGraficos && !(poucoMovimento && poucoMovimento.matches);
+  // o que ja esta na area visivel e montado na hora (sem piscar); o resto espera a pessoa rolar ate la
+  const r = el.getBoundingClientRect();
+  if (!observador || (r.top < window.innerHeight + 150 && r.bottom > -150)) return montarGrafico(el, option, animar);
+  pendentes.set(el, (semAnimar) => montarGrafico(el, option, animar && !semAnimar));
+  observador.observe(el);
+}
+function montarGrafico(el, option, animar) {
   const c = echarts.init(el, null, { renderer: "svg" });
   const eixo = { axisLine: { lineStyle: { color: GRID } }, axisTick: { show: false }, axisLabel: { color: MUTED }, splitLine: { lineStyle: { color: GRID } } };
   const base = {
-    backgroundColor: "transparent", color: SERIES, textStyle: { color: INK2, fontFamily: FONTE }, animation: false,
+    backgroundColor: "transparent", color: SERIES, textStyle: { color: INK2, fontFamily: FONTE },
+    animation: animar, animationDuration: 500, animationEasing: "cubicOut", animationDurationUpdate: 250,
     grid: { left: 4, right: 16, top: option.legend ? 14 + 24 * linhasDaLegenda(option, el.clientWidth) : 14, bottom: 4, containLabel: true },
     tooltip: { trigger: "axis", axisPointer: { type: "shadow", shadowStyle: { color: GRID, opacity: .35 } }, backgroundColor: SURFACE2, borderColor: GRID, textStyle: { color: INK, fontFamily: FONTE }, valueFormatter: (v) => brl(v) },
   };
@@ -386,9 +415,9 @@ function vResultado(d) {
         ${!temVendas ? "" : card("Vendas", filtrando ? "Mostra todas as vendas, sem o filtro." : "", realTab + semCusto, "wide", botao("Registrar compra ou venda", "transacoes", 0, 1))}
       </section>`,
     depois() {
-      $("f-classe").onchange = (e) => { S.classe = e.target.value; desenhar(); };
-      $("f-tipo").onchange = (e) => { S.tipo = e.target.value; desenhar(); };
-      if ($("f-limpar")) $("f-limpar").onclick = () => { S.classe = ""; S.tipo = ""; desenhar(); };
+      $("f-classe").onchange = (e) => { S.classe = e.target.value; desenhar(true); };
+      $("f-tipo").onchange = (e) => { S.tipo = e.target.value; desenhar(true); };
+      if ($("f-limpar")) $("f-limpar").onclick = () => { S.classe = ""; S.tipo = ""; desenhar(true); };
       if (com.length) chart("c-res", {
         grid: { right: 24 }, xAxis: eixoBRL, yAxis: { type: "category", data: com.map((p) => p.ticker || p.ativo.slice(0, 26)), axisLabel: { color: INK2 } },
         tooltip: { formatter: (a) => { const p = com[a[0].dataIndex]; return `${esc(p.ativo)}<br><b>${comSinal(p.resultado)}</b> (${pctSinal(p.resultado_pct)})${p.metodo === "observado" ? `<br>desde ${dt(p.desde)}` : ""}`; } },
@@ -472,7 +501,7 @@ function vGastos(d) {
         ${card(`Lançamentos de ${mes(g.mes)}`, "", itens, "wide")}
       </section>`,
     depois() {
-      $("s-mes").onchange = (e) => { S.mes = e.target.value; desenhar(); };
+      $("s-mes").onchange = (e) => { S.mes = e.target.value; desenhar(true); };
       chart("c-meses", {
         legend: {}, xAxis: { type: "category", data: d.gastos.map((x) => mes(x.mes)) }, yAxis: eixoBRL,
         series: [barra({ name: "Renda", data: d.gastos.map((x) => +x.renda.toFixed(2)), itemStyle: { color: SERIES[0], borderRadius: [4, 4, 0, 0] } }),
@@ -697,16 +726,17 @@ function vInicio() {
 
 /* ---------------------------------------------------------------- desenho */
 const VIEWS = { geral: vGeral, alocacao: vAlocacao, resultado: vResultado, gastos: vGastos, evolucao: vEvolucao, gestao: vGestao };
-function desenhar() {
+function desenhar(animar) {
   const d = S.d;
   if (!d) return;
+  animarGraficos = animar === true;
   aplicarAparencia();
   lerTema();
   $("b-priv").innerHTML = `${ic(S.priv ? "olhoFechado" : "olho")}<span class="lbl">${S.priv ? "Valores ocultos" : "Ocultar valores"}</span>`;
   $("b-priv").title = S.priv ? "Mostrar os valores em reais" : "Esconder os valores em reais (os percentuais continuam)";
   $("b-priv").setAttribute("aria-label", $("b-priv").title);
   $("b-priv").setAttribute("aria-pressed", S.priv);
-  S.charts.forEach((c) => c.dispose()); S.charts = [];
+  S.charts.forEach((c) => c.dispose()); S.charts = []; esquecerPendentes();
   if (!VIEWS[S.tab]) S.tab = "geral";
   $("tabs").innerHTML = TABS.map(([k, t, i]) => `<button role="tab" id="tab-${k}" aria-selected="${S.tab === k}" tabindex="${S.tab === k ? 0 : -1}" data-tab="${k}">${ic(i)}<span>${t}</span></button>`).join("");
   document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => irPara(b.dataset.tab)));
@@ -722,7 +752,7 @@ function desenhar() {
 }
 
 function irPara(tab, focar) {
-  S.tab = tab; ls("wd.tab", tab); desenhar(); window.scrollTo(0, 0);
+  S.tab = tab; ls("wd.tab", tab); window.scrollTo(0, 0); desenhar(true);
   if (focar && $("tab-" + tab)) $("tab-" + tab).focus();
 }
 /* Teclado nas abas: setas, Home e End, como num controle de abas nativo. */
