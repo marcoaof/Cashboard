@@ -19,24 +19,27 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header class="top">
-  <div class="top-row">
-    <a class="brand" href="/"><span class="mark" aria-hidden="true"></span><span class="word"><em>Dashboard</em> Financeiro</span></a>
-    <span id="sub">carregando</span>
+<a class="skip" href="#view">Pular para o conteúdo</a>
+<header class="top" id="top">
+  <div class="top-in">
+    <button class="brand" id="b-home" title="Ir para a visão geral"><span class="mark" aria-hidden="true"></span><span class="word"><em>Dashboard</em> Financeiro</span></button>
+    <nav id="tabs" role="tablist" aria-label="Seções do painel"></nav>
     <div class="tools">
-      <select id="f-classe" title="Filtrar por classe"></select>
-      <select id="f-tipo" title="Filtrar por tipo de produto"></select>
-      <button id="b-priv" class="ghost" title="Oculta valores em reais e mantém percentuais">Privacidade</button>
-      <button id="b-tema" class="ghost" title="Alterna entre modo claro e modo escuro">Tema</button>
-      <button id="b-xlsx" class="ghost" title="Baixa um relatório em planilha">Exportar</button>
-      <button id="b-print" class="ghost" title="Imprime ou salva em PDF a tela atual">Imprimir</button>
-      <button id="b-cfg" class="ghost" title="Pasta de dados">Configurações</button>
-      <span id="sync" class="sync" title="Sincronização com a pasta de dados"></span>
+      <button id="b-sync" class="status" title="Sincronizado com a pasta de dados. Clique para recarregar agora."><span id="sync" class="sync"></span><span id="sub">Carregando</span></button>
+      <button id="b-priv" class="tool" aria-pressed="false"></button>
+      <button id="b-tema" class="tool"></button>
+      <div class="menu-wrap">
+        <button id="b-menu" class="tool" aria-haspopup="menu" aria-expanded="false" aria-controls="menu" title="Exportar, imprimir e pasta de dados"></button>
+        <div id="menu" class="menu" role="menu" hidden>
+          <button role="menuitem" id="b-xlsx"><span data-ic="baixar"></span><span><b>Exportar planilha</b><small>Relatório em .xlsx com posições, alocação e gastos</small></span></button>
+          <button role="menuitem" id="b-print"><span data-ic="imprimir"></span><span><b>Imprimir ou salvar em PDF</b><small>A aba que está aberta</small></span></button>
+          <button role="menuitem" id="b-cfg"><span data-ic="pasta"></span><span><b>Pasta de dados</b><small>De onde o painel lê e onde grava</small></span></button>
+        </div>
+      </div>
     </div>
   </div>
-  <nav id="tabs" role="tablist"></nav>
 </header>
-<main id="view"></main>
+<main id="view" tabindex="-1"></main>
 <footer id="foot"></footer>
 
 <aside id="drawer" class="drawer" aria-hidden="true"><div class="drawer-in" id="drawer-in"></div></aside>

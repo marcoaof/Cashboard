@@ -1,8 +1,26 @@
 /* Dashboard Financeiro - frontend. Sem framework: estado em S, uma funcao de desenho por aba. */
 "use strict";
 
-const TABS = [["geral", "Visão geral"], ["alocacao", "Alocação"], ["resultado", "Lucros"],
-  ["gastos", "Gastos"], ["evolucao", "Evolução e simulador"], ["gestao", "Gestão"]];
+const TABS = [["geral", "Visão geral", "painel"], ["alocacao", "Alocação", "pizza"], ["resultado", "Lucros", "alta"],
+  ["gastos", "Gastos", "cartao"], ["evolucao", "Evolução e simulador", "barras"], ["gestao", "Gestão", "lapis"]];
+/* Icones proprios, em traco, que herdam a cor do texto. */
+const ICONES = {
+  painel: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
+  pizza: '<path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5v10z"/><path d="M14 3.2A8.5 8.5 0 0 1 20.8 10H14z"/>',
+  alta: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  cartao: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h3"/>',
+  barras: '<path d="M5 20V11M11 20V5M17 20v-7M3 20h18"/>',
+  lapis: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  olho: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  olhoFechado: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/>',
+  sol: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  lua: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/>',
+  mais: '<circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/>',
+  baixar: '<path d="M12 4v11M7 11l5 5 5-5M4 20h16"/>',
+  imprimir: '<path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M7 14h10v6H7z"/>',
+  pasta: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+};
+const ic = (nome) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONES[nome] || ""}</svg>`;
 /* Cores e fontes vem do CSS (styles.css), para os graficos acompanharem o tema claro ou escuro. */
 let SERIES = [], INK, INK2, MUTED, GRID, SURFACE, SURFACE2, FONTE;
 function lerTema() {
@@ -49,23 +67,29 @@ function toast(msg, err) {
   toast.t = setTimeout(() => (t.className = "toast"), err ? 6000 : 2600);
 }
 
+function conexao(ok) {
+  $("sync").className = "sync " + (ok ? "ok" : "err");
+  if (!ok) $("sub").textContent = "Sem conexão com o servidor";
+  else if (S.d) $("sub").textContent = S.d.vazio ? "Sem dados" : `Posição de ${dt(S.d.snapshot)}`;
+  $("b-sync").title = ok ? "Sincronizado com a pasta de dados. Clique para recarregar agora." : "O servidor local não respondeu. Clique para tentar de novo.";
+}
 async function carregar(silencioso) {
   try {
     S.d = await api("/api/dashboard");
     if (!S.schema) S.schema = await api("/api/schema");
     S.linhas = null; S.docs = null;
-    $("sync").className = "sync ok";
+    conexao(true);
     if (!silencioso) S.mes = null;
     desenhar();
   } catch (e) {
-    $("sync").className = "sync err";
+    conexao(false);
     toast(e.message, true);
   }
 }
 async function vigiar() {
   try {
     const s = await api("/api/state");
-    $("sync").className = "sync ok";
+    conexao(true);
     if (S.d && s.fingerprint !== S.d.fingerprint) {
       if ($("drawer").classList.contains("open") || S.editando) return;   // nao atropela quem digita
       const y = window.scrollY;
@@ -73,7 +97,7 @@ async function vigiar() {
       window.scrollTo(0, y);
       toast("Arquivos alterados na pasta de dados. Painel atualizado.");
     }
-  } catch (e) { $("sync").className = "sync err"; }
+  } catch (e) { conexao(false); }
 }
 
 /* ---------------------------------------------------------------- graficos */
@@ -234,6 +258,10 @@ function vResultado(d) {
     esc(p.tipo), esc(p.classe), qtd(p.quantidade), p.preco_medio == null ? "" : brl(p.preco_medio), p.preco_mercado == null ? "" : brl(p.preco_mercado),
     brl(p.valor), p.resultado == null ? '<span class="muted">n/d</span>' : `<span class="${sinal(p.resultado)}">${comSinal(p.resultado)}</span>`,
     p.resultado_pct == null ? "" : `<span class="${sinal(p.resultado_pct)}">${pct(p.resultado_pct)}</span>`, `<span class="small muted">${metodo(p)}</span>`]);
+  const unicos = (k) => [...new Set(d.posicoes.map((p) => p[k]))].sort();
+  const sel = (id, vals, atual, rot) => `<select id="${id}" aria-label="${rot}"><option value="">${rot}</option>${vals.map((v) => `<option ${v === atual ? "selected" : ""}>${esc(v)}</option>`).join("")}</select>`;
+  const filtros = `<div class="filters noprint"><span class="eyebrow">Filtrar posições</span>${sel("f-classe", unicos("classe"), S.classe, "Todas as classes")}${sel("f-tipo", unicos("tipo"), S.tipo, "Todos os tipos")}
+    ${S.classe || S.tipo ? `<button class="btn" id="f-limpar">Limpar filtros</button><span class="muted small">${ps.length} de ${d.posicoes.filter((p) => p.valor).length} posições. Vale para o gráfico e para a tabela de posições.</span>` : ""}</div>`;
   const real = r.realizado;
   const realTab = tabela([{ t: "Data" }, { t: "Ticker" }, { t: "Qtd", n: 1 }, { t: "Venda", n: 1 }, { t: "Custo", n: 1 }, { t: "Resultado", n: 1 }],
     real.itens.map((i) => [dt(i.data), esc(i.ticker), qtd(i.quantidade), brl(i.venda), brl(i.custo), `<span class="${sinal(i.resultado)}">${comSinal(i.resultado)}</span>`]),
@@ -246,7 +274,7 @@ function vResultado(d) {
         ${kpi("Resultado realizado", comSinal(real.total), `${real.itens.length} venda(s) com custo · ${real.sem_custo.length} sem custo`, sinal(real.total))}
         ${kpi("IR retido registrado", brl(real.ir_pago), "Soma de ir_brl em transacoes.csv")}
       </section>
-      <section class="grid cols">
+      ${filtros}<section class="grid cols">
         ${card("Resultado por posição", "Só posições com resultado calculável. Verde: ganho. Terracota: perda.", `<div id="c-res" class="chart" style="height:${Math.max(220, com.length * 34 + 40)}px"></div>`)}
         ${card("Resultado por tipo de produto", "Soma das posições de cada tipo. Os dois métodos não se somam: medem períodos diferentes.",
           tabela([{ t: "Tipo" }, { t: "Valor", n: 1 }, { t: "Custo", n: 1 }, { t: "Lucro sobre custo", n: 1 }, { t: "%", n: 1 }, { t: "Rendimento observado", n: 1 }],
@@ -258,6 +286,9 @@ function vResultado(d) {
         ${card("Resultado realizado", "Venda menos custo médio das compras registradas em transacoes.csv.", realTab + semCusto, "wide")}
       </section>`,
     depois() {
+      $("f-classe").onchange = (e) => { S.classe = e.target.value; desenhar(); };
+      $("f-tipo").onchange = (e) => { S.tipo = e.target.value; desenhar(); };
+      if ($("f-limpar")) $("f-limpar").onclick = () => { S.classe = ""; S.tipo = ""; desenhar(); };
       chart("c-res", {
         grid: { right: 24 }, xAxis: eixoBRL, yAxis: { type: "category", data: com.map((p) => p.ticker || p.ativo.slice(0, 26)), axisLabel: { color: INK2 } },
         tooltip: { formatter: (a) => { const p = com[a[0].dataIndex]; return `${esc(p.ativo)}<br><b>${comSinal(p.resultado)}</b> (${pct(p.resultado_pct)})<br>${metodo(p)}`; } },
@@ -534,28 +565,57 @@ function desenhar() {
   if (!d) return;
   lerTema();
   const escuro = document.documentElement.getAttribute("data-theme") === "dark";
-  $("b-tema").textContent = escuro ? "Modo claro" : "Modo escuro";
+  $("b-tema").innerHTML = `${ic(escuro ? "sol" : "lua")}<span class="lbl">${escuro ? "Modo claro" : "Modo escuro"}</span>`;
+  $("b-tema").title = escuro ? "Mudar para o modo claro" : "Mudar para o modo escuro";
+  $("b-tema").setAttribute("aria-label", $("b-tema").title);
+  $("b-priv").innerHTML = `${ic(S.priv ? "olhoFechado" : "olho")}<span class="lbl">${S.priv ? "Valores ocultos" : "Ocultar valores"}</span>`;
+  $("b-priv").title = S.priv ? "Mostrar os valores em reais" : "Ocultar os valores em reais e manter os percentuais";
+  $("b-priv").setAttribute("aria-label", $("b-priv").title);
+  $("b-priv").setAttribute("aria-pressed", S.priv);
   S.charts.forEach((c) => c.dispose()); S.charts = [];
-  $("tabs").innerHTML = TABS.map(([k, t]) => `<button role="tab" aria-selected="${S.tab === k}" data-tab="${k}">${t}</button>`).join("");
-  document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => { S.tab = b.dataset.tab; ls("wd.tab", S.tab); desenhar(); window.scrollTo(0, 0); }));
-  $("b-priv").className = "ghost" + (S.priv ? " on" : "");
-  $("sub").textContent = d.vazio ? "sem dados" : `posição de ${dt(d.snapshot)}`;
+  $("tabs").innerHTML = TABS.map(([k, t, i]) => `<button role="tab" id="tab-${k}" aria-selected="${S.tab === k}" tabindex="${S.tab === k ? 0 : -1}" data-tab="${k}">${ic(i)}<span>${t}</span></button>`).join("");
+  document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => irPara(b.dataset.tab)));
+  const ativa = $("tab-" + S.tab);
+  if (ativa) $("tabs").scrollLeft = Math.max(0, ativa.offsetLeft - ($("tabs").clientWidth - ativa.offsetWidth) / 2);
+  conexao(true);
   $("foot").textContent = d.config.disclaimer || "";
   if (d.vazio) {
     $("view").innerHTML = card("Pasta de dados sem posições", "", `<p>${esc(d.faltando.join(" "))}</p><p class="muted">Abra Configurações e aponte para uma pasta com a estrutura esperada, ou use os dados de exemplo.</p>`);
     return;
   }
-  const opcoes = (el, vals, atual, rot) => (el.innerHTML = `<option value="">${rot}</option>` + vals.map((v) => `<option ${v === atual ? "selected" : ""}>${esc(v)}</option>`).join(""));
-  opcoes($("f-classe"), [...new Set(d.posicoes.map((p) => p.classe))].sort(), S.classe, "Todas as classes");
-  opcoes($("f-tipo"), [...new Set(d.posicoes.map((p) => p.tipo))].sort(), S.tipo, "Todos os tipos");
   d.alocacao.linhas.forEach((l) => cor(l.classe, "classe"));
   const v = (VIEWS[S.tab] || vGeral)(d);
   $("view").innerHTML = v.html;
   if (v.depois) v.depois();
 }
 
-$("f-classe").onchange = (e) => { S.classe = e.target.value; if (S.tab !== "resultado") S.tab = "resultado"; desenhar(); };
-$("f-tipo").onchange = (e) => { S.tipo = e.target.value; if (S.tab !== "resultado") S.tab = "resultado"; desenhar(); };
+function irPara(tab, focar) {
+  S.tab = tab; ls("wd.tab", tab); desenhar(); window.scrollTo(0, 0);
+  if (focar && $("tab-" + tab)) $("tab-" + tab).focus();
+}
+/* Teclado nas abas: setas, Home e End, como num controle de abas nativo. */
+$("tabs").onkeydown = (e) => {
+  const i = TABS.findIndex((t) => t[0] === S.tab), n = TABS.length;
+  const j = e.key === "ArrowRight" ? (i + 1) % n : e.key === "ArrowLeft" ? (i + n - 1) % n : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
+  if (j < 0) return;
+  e.preventDefault();
+  irPara(TABS[j][0], true);
+};
+$("b-home").onclick = () => irPara("geral");
+$("b-sync").onclick = async () => { await carregar(true); if ($("sync").classList.contains("ok")) toast("Dados recarregados da pasta."); };
+const menu = (abrir) => { $("menu").hidden = !abrir; $("b-menu").setAttribute("aria-expanded", abrir); };
+$("b-menu").innerHTML = `${ic("mais")}<span class="lbl">Mais</span>`;
+$("b-menu").setAttribute("aria-label", "Mais ações: exportar, imprimir e pasta de dados");
+$("b-menu").onclick = (e) => { e.stopPropagation(); menu($("menu").hidden); if (!$("menu").hidden) $("menu").querySelector("button").focus(); };
+document.querySelectorAll("[data-ic]").forEach((el) => (el.outerHTML = ic(el.dataset.ic)));
+document.addEventListener("click", (e) => { if (!e.target.closest(".menu-wrap")) menu(false); });
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!$("menu").hidden) { menu(false); $("b-menu").focus(); }
+  $("drawer").classList.remove("open"); $("modal").classList.remove("open");
+});
+$("menu").onclick = () => menu(false);
+window.addEventListener("scroll", () => $("top").classList.toggle("rolou", window.scrollY > 4), { passive: true });
 $("b-priv").onclick = () => { S.priv = !S.priv; ls("wd.priv", S.priv ? "1" : "0"); desenhar(); };
 $("b-tema").onclick = () => {
   const novo = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
